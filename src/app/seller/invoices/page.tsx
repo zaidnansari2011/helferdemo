@@ -391,7 +391,7 @@ export default function InvoicesPage() {
                                 </DropdownMenuItem>
                                 {invoice.status === "DRAFT" && (
                                   <DropdownMenuItem
-                                    onClick={() => sendMutation.mutate({ id: invoice.id })}
+                                    onClick={() => (sendMutation.mutate as any)({ id: invoice.id })}
                                     disabled={sendMutation.isPending}
                                   >
                                     <Send className="mr-2 h-4 w-4" />
@@ -400,7 +400,7 @@ export default function InvoicesPage() {
                                 )}
                                 {isOverdue && invoice.status !== "OVERDUE" && (
                                   <DropdownMenuItem
-                                    onClick={() => markUnpaidMutation.mutate({ id: invoice.id })}
+                                    onClick={() => (markUnpaidMutation.mutate as any)({ id: invoice.id })}
                                     disabled={markUnpaidMutation.isPending}
                                     className="text-red-600"
                                   >
