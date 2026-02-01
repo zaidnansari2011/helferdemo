@@ -121,7 +121,7 @@ export default function SellerOnboardingPage() {
       socialMediaLink: "",
       userCount: "",
       contactName: "",
-      officialEmail: session?.user?.email || "",
+      officialEmail: "",
       designation: "",
       mobileNumber: "",
       countryCode: "+91"

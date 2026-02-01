@@ -1,17 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useMemo, Suspense } from "react";
 import { Plus, Package, Tag, Eye, Search, Filter, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { trpc } from "@/lib/trpc-provider";
-import { useQuery } from "@tanstack/react-query";
-import { CreateProductModal } from "@/components/products/CreateProductModal";
-import { ProductDetailsModal } from "@/components/products/ProductDetailsModal";
 
 interface ProductListItem {
   id: string;
@@ -32,7 +27,70 @@ interface ProductListItem {
   };
 }
 
-export default function ProductsPage() {
+// DEMO MODE: Mock product data
+const mockProducts: ProductListItem[] = [
+  {
+    id: "1",
+    productCode: "PRD-001",
+    name: "Industrial Power Drill",
+    description: "Heavy-duty power drill for industrial applications with variable speed control",
+    brand: "DeWalt",
+    sku: "DRL-IND-001",
+    basePrice: 4500,
+    images: "[]",
+    isActive: true,
+    category: { id: "cat1", name: "Tools" },
+    _count: { variants: 3 }
+  },
+  {
+    id: "2",
+    productCode: "PRD-002",
+    name: "Safety Helmet",
+    description: "Industrial safety helmet with adjustable straps and ventilation",
+    brand: "3M",
+    sku: "SFT-HLM-001",
+    basePrice: 850,
+    images: "[]",
+    isActive: true,
+    category: { id: "cat2", name: "Safety Equipment" },
+    _count: { variants: 5 }
+  },
+  {
+    id: "3",
+    productCode: "PRD-003",
+    name: "PVC Pipe 4 inch",
+    description: "High-quality PVC pipe for plumbing applications",
+    brand: "Supreme",
+    sku: "PLB-PVC-004",
+    basePrice: 320,
+    images: "[]",
+    isActive: true,
+    category: { id: "cat3", name: "Plumbing" },
+    _count: { variants: 2 }
+  },
+  {
+    id: "4",
+    productCode: "PRD-004",
+    name: "LED Bulb 12W",
+    description: "Energy efficient LED bulb with 5 year warranty",
+    brand: "Philips",
+    sku: "ELC-LED-012",
+    basePrice: 180,
+    images: "[]",
+    isActive: false,
+    category: { id: "cat4", name: "Electrical" },
+    _count: { variants: 4 }
+  },
+];
+
+const mockCategories = [
+  { id: "cat1", name: "Tools" },
+  { id: "cat2", name: "Safety Equipment" },
+  { id: "cat3", name: "Plumbing" },
+  { id: "cat4", name: "Electrical" },
+];
+
+function ProductsContent() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   
@@ -42,13 +100,9 @@ export default function ProductsPage() {
   const [selectedBrand, setSelectedBrand] = useState<string>("all-brands");
   const [selectedStatus, setSelectedStatus] = useState<string>("all-status");
   
-  const searchParams = useSearchParams();
-  
-  // Get warehouseId from URL query params
-  const warehouseId = searchParams.get('warehouseId') || undefined;
-
-  const { data: products, isLoading, refetch } = useQuery(trpc.inventoryProducts.list.queryOptions());
-  const { data: categories } = useQuery(trpc.products.getCategories.queryOptions());
+  // DEMO MODE: Use mock data
+  const products = mockProducts;
+  const categories = mockCategories;
 
   // Extract unique brands from products
   const uniqueBrands = useMemo(() => {
@@ -102,7 +156,6 @@ export default function ProductsPage() {
   }, [products, searchQuery, selectedCategory, selectedBrand, selectedStatus]);
 
   const handleProductCreated = () => {
-    refetch();
     setCreateModalOpen(false);
   };
 
@@ -122,39 +175,6 @@ export default function ProductsPage() {
     (selectedBrand && selectedBrand !== "all-brands") || 
     (selectedStatus && selectedStatus !== "all-status");
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">Product Management</h1>
-            <p className="text-muted-foreground">Manage your product catalog and variants</p>
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader>
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="h-3 bg-gray-200 rounded"></div>
-                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                  <div className="flex gap-2 mt-4">
-                    <div className="h-6 bg-gray-200 rounded w-16"></div>
-                    <div className="h-6 bg-gray-200 rounded w-20"></div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto">
       {/* Header */}
@@ -163,11 +183,6 @@ export default function ProductsPage() {
           <h1 className="text-3xl font-bold text-red-600">Product Management</h1>
           <p className="text-muted-foreground">
             Manage your product catalog and variants
-            {warehouseId && (
-              <span className="block text-sm text-brand-navy mt-1">
-                Adding products for selected warehouse
-              </span>
-            )}
           </p>
         </div>
         <Button onClick={() => setCreateModalOpen(true)} size="lg">
@@ -393,20 +408,15 @@ export default function ProductsPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Modals */}
-      <CreateProductModal 
-        open={createModalOpen} 
-        onOpenChange={setCreateModalOpen}
-        onSuccess={handleProductCreated}
-        warehouseId={warehouseId}
-      />
-      <ProductDetailsModal 
-        productId={selectedProduct}
-        open={!!selectedProduct}
-        onOpenChange={(open) => !open && setSelectedProduct(null)}
-        onSuccess={refetch}
-      />
     </div>
+  );
+}
+
+// Wrap in Suspense for static generation
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading products...</div>}>
+      <ProductsContent />
+    </Suspense>
   );
 } 
