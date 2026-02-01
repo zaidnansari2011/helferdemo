@@ -1,6 +1,5 @@
 "use client";
-import { useSession } from "@/lib/auth-client";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { 
@@ -14,10 +13,6 @@ import {
   ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
-import { clearQueryCache, trpcClient } from "@/lib/trpc-provider";
-import { toast } from "sonner";
-import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,46 +52,13 @@ const navItems = [
 
 export function SellerHeader() {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const [isApproved, setIsApproved] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  
+  // DEMO MODE: Always approved
+  const isApproved = true;
 
-  // Check if seller is approved
-  useEffect(() => {
-    const checkApprovalStatus = async () => {
-      if (session?.user) {
-        setIsLoading(true);
-        try {
-          const accessCheck = await trpcClient.seller.verifySellerAccess.query();
-          setIsApproved(accessCheck.isSeller);
-        } catch (error) {
-          setIsApproved(false);
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
-    checkApprovalStatus();
-  }, [session, pathname]);
-
-  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    // Allow navigation to dashboard and onboarding even if not approved
-    if (href === "/seller" || href === "/seller/onboarding" || pathname === href) {
-      return;
-    }
-    
-    // Block navigation if not approved
-    if (!isApproved && !isLoading) {
-      e.preventDefault();
-      toast.error("Please complete and submit your onboarding form first", {
-        description: "Your application needs to be reviewed before accessing other features."
-      });
-    }
-  };
-
-  const handleSignOut = async () => {
-    clearQueryCache();
-    await authClient.signOut();
+  const handleSignOut = () => {
+    router.push("/");
   };
 
   return (
@@ -118,18 +80,14 @@ export function SellerHeader() {
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
-            const isBlocked = !isApproved && !isLoading && item.href !== "/seller" && item.href !== "/seller/onboarding";
             
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={(e) => handleNavClick(e, item.href)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive
                     ? "bg-brand-red text-white shadow-md"
-                    : isBlocked
-                    ? "text-gray-300 hover:bg-gray-50 cursor-not-allowed"
                     : "text-gray-700 hover:bg-gray-100"
                 }`}
               >
@@ -152,13 +110,10 @@ export function SellerHeader() {
             <Button variant="ghost" className="gap-2 text-gray-700 hover:bg-gray-100">
               <div className="flex flex-col items-end">
                 <span className="text-sm font-medium">
-                  {session?.user?.name || "Seller"}
+                  Demo Seller
                 </span>
                 <span className="text-xs text-gray-500">
-                  {session?.user?.email?.endsWith('@temp.blinkit.com') 
-                    ? session?.user?.phoneNumber || session?.user?.email.replace('@temp.blinkit.com', '')
-                    : session?.user?.email || session?.user?.phoneNumber
-                  }
+                  demo@helfer.com
                 </span>
               </div>
               <ChevronDown className="h-4 w-4" />

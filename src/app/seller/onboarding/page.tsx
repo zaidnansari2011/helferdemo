@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,11 +16,7 @@ import {
 import { FloatingInput } from "@/components/ui/FloatingInput"
 import { FloatingSelect } from "@/components/ui/FloatingSelect"
 import { OnboardingFormData, GSTVerificationData } from "@/types/onboarding"
-import { useSession } from "@/lib/auth-client"
 import { useRouter } from "next/navigation"
-import { trpcClient } from "@/lib/trpc-provider"
-import { useMutation, useQuery } from "@tanstack/react-query"
-import { trpc } from "@/lib/trpc-provider"
 import { Loader2, X, CheckCircle, Upload, Download, FileText, ImageIcon, Info, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -31,7 +27,6 @@ const categories = [
 ]
 
 export default function SellerOnboardingPage() {
-  const { data: session } = useSession()
   const router = useRouter()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   
@@ -159,26 +154,22 @@ export default function SellerOnboardingPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const uploadFileMutation = useMutation(trpc.seller.uploadFile.mutationOptions())
-  const onboardingMutation = useMutation(trpc.seller.createSeller.mutationOptions({
-    onSuccess: () => {
-      // Invalidate seller access query to unlock dashboard sections immediately
-      trpcClient.seller.verifySellerAccess.invalidate()
-    }
-  }))
-
-  // Update email when session loads
-  useEffect(() => {
-    if (session?.user?.email) {
-      setFormData(prev => ({
-        ...prev,
-        businessDetails: {
-          ...prev.businessDetails,
-          officialEmail: session.user.email
-        }
-      }))
-    }
-  }, [session?.user?.email])
+  // DEMO MODE: Mock mutations that just succeed
+  const uploadFileMutation = {
+    mutateAsync: async (data: { file: string; fileName: string; folder: string }) => {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      return { url: `https://demo-storage.example.com/${data.folder}/${data.fileName}` }
+    },
+    isPending: false
+  }
+  
+  const onboardingMutation = {
+    mutateAsync: async (_data: OnboardingFormData) => {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      return { success: true }
+    },
+    isPending: false
+  }
 
   // Setup canvas for signature
   useEffect(() => {
@@ -266,38 +257,35 @@ export default function SellerOnboardingPage() {
     setGstError("")
     setGstVerifying(true)
     
-    try {
-      const result = await trpcClient.seller.verifyGSTIN.mutate({
-        GSTIN: formData.sellerDetails.gstNumber,
-      })
-      
-      if (result?.success) {
-        setGstData({
-          success: true,
-          gstin: result.data.gstin,
-          legalName: result.data.legalName,
-          tradeName: result.data.tradeName,
-          registrationDate: result.data.registrationDate,
-          status: result.data.status,
-          businessType: result.data.businessType,
-          address: result.data.address,
-          addresses: result.data.addresses,
-        })
-        setGstVerified(true)
-        setValidatedSections(prev => ({ ...prev, gst: true }))
-      } else {
-        setGstError("GST verification failed. Please check the GST number and try again.")
-        setGstVerified(false)
-        setGstData(null)
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "GST verification failed. Please check the GST number and try again."
-      setGstError(errorMessage)
-      setGstVerified(false)
-      setGstData(null)
-    } finally {
-      setGstVerifying(false)
-    }
+    // DEMO MODE: Simulate GST verification with mock data
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    setGstData({
+      success: true,
+      gstin: formData.sellerDetails.gstNumber,
+      legalName: "Demo Enterprise Pvt Ltd",
+      tradeName: "Demo Tools & Hardware",
+      registrationDate: "2020-01-15",
+      status: "Active",
+      businessType: "Private Limited Company",
+      address: "123 Industrial Area, Phase 2, Mumbai, Maharashtra - 400001",
+      addresses: [
+        {
+          id: "addr1",
+          address: "123 Industrial Area, Phase 2, Mumbai, Maharashtra - 400001",
+          type: "Principal Place of Business"
+        },
+        {
+          id: "addr2", 
+          address: "456 Commercial Complex, Andheri East, Mumbai - 400069",
+          type: "Additional Place of Business"
+        }
+      ],
+    })
+    setGstVerified(true)
+    setValidatedSections(prev => ({ ...prev, gst: true }))
+    setGstVerifying(false)
+    toast.success("GST verified successfully!")
   }
 
   // File to base64 converter
@@ -491,15 +479,10 @@ export default function SellerOnboardingPage() {
     try {
       await onboardingMutation.mutateAsync(formData)
       
-      // In demo mode, skip pending page and go directly to dashboard
-      const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-      if (isDemoMode) {
-        toast.success("Application submitted successfully! Redirecting to dashboard...")
-        await new Promise(resolve => setTimeout(resolve, 1500)) // Brief delay to show success message
-        router.push("/seller")
-      } else {
-        router.push("/seller/pending")
-      }
+      // DEMO MODE: Always go directly to dashboard
+      toast.success("Application submitted successfully! Redirecting to dashboard...")
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      router.push("/seller")
     } catch (error) {
       console.error("Onboarding submission failed:", error)
       alert("Submission failed. Please try again.")

@@ -1,8 +1,6 @@
 "use client"
 
-import { useSession } from "@/lib/auth-client"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
@@ -23,8 +21,6 @@ import {
   Eye,
   Send
 } from "lucide-react"
-import { trpc } from "@/lib/trpc-provider"
-import { useQuery } from "@tanstack/react-query"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -94,124 +90,33 @@ const formatDate = (date: string | Date) => {
 }
 
 export default function SellerDashboard() {
-  const { data: session, isPending: sessionLoading } = useSession()
-  const router = useRouter()
   const [period, setPeriod] = useState<Period>("30d")
 
-  // Get seller profile data
-  const { data: dashboardData, isLoading: dashboardLoading, error: dashboardError } = useQuery({
-    ...trpc.seller.getDashboardData.queryOptions(),
-    enabled: !!session?.user,
-    retry: false,
-  })
-
-  // B2B Analytics
-  const hasSellerAccess = !!dashboardData && !dashboardError
-  
-  const { data: b2bSummary, isLoading: summaryLoading } = useQuery({
-    ...trpc.procurement.analytics.getDashboardSummary.queryOptions({ period }),
-    enabled: hasSellerAccess,
-  })
-
-  const { data: piPipeline, isLoading: pipelineLoading } = useQuery({
-    ...trpc.procurement.analytics.getPIPipeline.queryOptions(),
-    enabled: hasSellerAccess,
-  })
-
-  const { data: recentPIs, isLoading: recentPIsLoading } = useQuery({
-    ...trpc.procurement.analytics.getRecentPIs.queryOptions({ limit: 5 }),
-    enabled: hasSellerAccess,
-  })
-
-  const { data: recentPOs, isLoading: recentPOsLoading } = useQuery({
-    ...trpc.procurement.analytics.getRecentPOs.queryOptions({ limit: 5 }),
-    enabled: hasSellerAccess,
-  })
-
-  const { data: paymentAging, isLoading: agingLoading } = useQuery({
-    ...trpc.procurement.analytics.getPaymentAging.queryOptions(),
-    enabled: hasSellerAccess,
-  })
-
-  const { data: revenueTrend, isLoading: trendLoading } = useQuery({
-    ...trpc.procurement.analytics.getRevenueTrend.queryOptions({ months: 6 }),
-    enabled: hasSellerAccess,
-  })
-
-  // Auth redirect logic
-  useEffect(() => {
-    if (!sessionLoading && !session?.user) {
-      router.push("/")
-    }
-  }, [session, sessionLoading, router])
-
-  // Redirect to pending page if verification is pending/in-progress
-  useEffect(() => {
-    if (
-      dashboardData?.profile.verificationStatus === "PENDING" ||
-      dashboardData?.profile.verificationStatus === "IN_PROGRESS"
-    ) {
-      router.push("/seller/pending")
-    }
-  }, [dashboardData?.profile.verificationStatus, router])
-
-  // Show loading while checking auth or loading data
-  if (sessionLoading || (dashboardLoading && session?.user)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-navy mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+  // DEMO MODE: Mock data
+  const profile = {
+    brandName: "Demo Tools & Hardware",
+    verificationStatus: "VERIFIED"
   }
 
-  // Handle errors
-  if (dashboardError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-brand-red mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600">You need a seller account to access this dashboard.</p>
-          <Button onClick={() => router.push("/seller/onboarding")} className="mt-4">
-            Complete Seller Onboarding
-          </Button>
-        </div>
-      </div>
-    )
+  const b2bSummary = {
+    proformaInvoices: { total: 12, draft: 2, sent: 5, totalValue: 485000 },
+    purchaseOrders: { inProgress: 3, pending: 1, delivered: 8 },
+    payments: { pending: 125000, overdue: 25000, collected: 360000 },
+    invoices: { unpaid: 3, paid: 9 }
   }
 
-  // Don't render if not authenticated or no dashboard data
-  if (!session?.user || !dashboardData) {
-    return null
-  }
+  const recentPIs = [
+    { id: "1", piNumber: "PI-2024-001", status: "APPROVED", createdAt: new Date(), items: [{}, {}, {}], total: 75000 },
+    { id: "2", piNumber: "PI-2024-002", status: "SENT", createdAt: new Date(), items: [{}, {}], total: 42000 },
+    { id: "3", piNumber: "PI-2024-003", status: "DRAFT", createdAt: new Date(), items: [{}], total: 18500 },
+  ]
 
-  // If rejected, show rejection message
-  if (dashboardData.profile.verificationStatus === "REJECTED") {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <AlertCircle className="h-12 w-12 text-brand-red mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Application Rejected</h1>
-          <p className="text-gray-600 mb-2">Unfortunately, your seller application was not approved.</p>
-          {dashboardData.profile.rejectionReason && (
-            <p className="text-sm text-gray-500 mb-4">Reason: {dashboardData.profile.rejectionReason}</p>
-          )}
-          <Button onClick={() => router.push("/seller/onboarding")} className="mt-4">
-            Resubmit Application
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  const recentPOs = [
+    { id: "1", poNumber: "PO-2024-001", status: "DELIVERED", createdAt: new Date(), items: [{}, {}, {}], total: 75000, pi: { piNumber: "PI-2024-001" } },
+    { id: "2", poNumber: "PO-2024-002", status: "IN_PROGRESS", createdAt: new Date(), items: [{}, {}], total: 42000, pi: { piNumber: "PI-2024-002" } },
+  ]
 
-  const { profile } = dashboardData
   const isVerified = profile.verificationStatus === "VERIFIED"
-
-  // Calculate pipeline totals for progress visualization
-  const pipelineTotal = piPipeline?.reduce((sum, item) => sum + item.count, 0) || 0
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -268,17 +173,17 @@ export default function SellerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {summaryLoading ? "..." : b2bSummary?.proformaInvoices.total || 0}
+                {b2bSummary.proformaInvoices.total}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {formatCurrency(b2bSummary?.proformaInvoices.totalValue || 0)} total value
+                {formatCurrency(b2bSummary.proformaInvoices.totalValue)} total value
               </p>
               <div className="flex gap-2 mt-2">
                 <Badge variant="secondary" className="text-xs">
-                  {b2bSummary?.proformaInvoices.draft || 0} draft
+                  {b2bSummary.proformaInvoices.draft} draft
                 </Badge>
                 <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
-                  {b2bSummary?.proformaInvoices.sent || 0} sent
+                  {b2bSummary.proformaInvoices.sent} sent
                 </Badge>
               </div>
             </CardContent>
@@ -292,14 +197,14 @@ export default function SellerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {summaryLoading ? "..." : b2bSummary?.purchaseOrders.inProgress || 0}
+                {b2bSummary.purchaseOrders.inProgress}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {b2bSummary?.purchaseOrders.pending || 0} pending acknowledgement
+                {b2bSummary.purchaseOrders.pending} pending acknowledgement
               </p>
               <div className="flex gap-2 mt-2">
                 <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
-                  {b2bSummary?.purchaseOrders.delivered || 0} delivered
+                  {b2bSummary.purchaseOrders.delivered} delivered
                 </Badge>
               </div>
             </CardContent>
@@ -313,15 +218,15 @@ export default function SellerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">
-                {summaryLoading ? "..." : formatCurrency(b2bSummary?.payments.pending || 0)}
+                {formatCurrency(b2bSummary.payments.pending)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {b2bSummary?.invoices.unpaid || 0} unpaid invoices
+                {b2bSummary.invoices.unpaid} unpaid invoices
               </p>
-              {(b2bSummary?.payments.overdue || 0) > 0 && (
+              {b2bSummary.payments.overdue > 0 && (
                 <Badge variant="destructive" className="text-xs mt-2">
                   <AlertTriangle className="h-3 w-3 mr-1" />
-                  {formatCurrency(b2bSummary?.payments.overdue || 0)} overdue
+                  {formatCurrency(b2bSummary.payments.overdue)} overdue
                 </Badge>
               )}
             </CardContent>
@@ -335,14 +240,14 @@ export default function SellerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {summaryLoading ? "..." : formatCurrency(b2bSummary?.payments.collected || 0)}
+                {formatCurrency(b2bSummary.payments.collected)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {b2bSummary?.invoices.paid || 0} invoices paid
+                {b2bSummary.invoices.paid} invoices paid
               </p>
               <div className="flex items-center gap-1 mt-2">
                 <TrendingUp className="h-3 w-3 text-green-500" />
-                <span className="text-xs text-green-600">From {b2bSummary?.purchaseOrders.delivered || 0} deliveries</span>
+                <span className="text-xs text-green-600">From {b2bSummary.purchaseOrders.delivered} deliveries</span>
               </div>
             </CardContent>
           </Card>
@@ -367,48 +272,32 @@ export default function SellerDashboard() {
               </Link>
             </CardHeader>
             <CardContent>
-              {recentPIsLoading ? (
-                <div className="h-[200px] flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-navy"></div>
-                </div>
-              ) : recentPIs && recentPIs.length > 0 ? (
-                <div className="space-y-3">
-                  {recentPIs.map((pi) => (
-                    <div
-                      key={pi.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{pi.piNumber}</span>
-                          <PIStatusBadge status={pi.status} />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {formatDate(pi.createdAt)} • {pi.items.length} items
-                        </p>
+              <div className="space-y-3">
+                {recentPIs.map((pi) => (
+                  <div
+                    key={pi.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{pi.piNumber}</span>
+                        <PIStatusBadge status={pi.status} />
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatCurrency(pi.total)}</p>
-                        <Link href={`/seller/proforma-invoices/${pi.id}`}>
-                          <Button variant="ghost" size="sm" className="h-7 text-xs">
-                            <Eye className="h-3 w-3 mr-1" /> View
-                          </Button>
-                        </Link>
-                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatDate(pi.createdAt)} • {pi.items.length} items
+                      </p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="h-[200px] flex flex-col items-center justify-center text-center">
-                  <FileText className="h-12 w-12 text-gray-300 mb-3" />
-                  <p className="text-gray-500 mb-3">No proforma invoices yet</p>
-                  <Link href="/seller/proforma-invoices/new">
-                    <Button size="sm" variant="outline">
-                      <Plus className="h-4 w-4 mr-1" /> Create First PI
-                    </Button>
-                  </Link>
-                </div>
-              )}
+                    <div className="text-right">
+                      <p className="font-semibold">{formatCurrency(pi.total)}</p>
+                      <Link href={`/seller/proforma-invoices/${pi.id}`}>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs">
+                          <Eye className="h-3 w-3 mr-1" /> View
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
@@ -429,47 +318,33 @@ export default function SellerDashboard() {
               </Link>
             </CardHeader>
             <CardContent>
-              {recentPOsLoading ? (
-                <div className="h-[200px] flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-navy"></div>
-                </div>
-              ) : recentPOs && recentPOs.length > 0 ? (
-                <div className="space-y-3">
-                  {recentPOs.map((po) => (
-                    <div
-                      key={po.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{po.poNumber}</span>
-                          <POStatusBadge status={po.status} />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {formatDate(po.createdAt)} • {po.items.length} items
-                          {po.pi && <span> • From {po.pi.piNumber}</span>}
-                        </p>
+              <div className="space-y-3">
+                {recentPOs.map((po) => (
+                  <div
+                    key={po.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{po.poNumber}</span>
+                        <POStatusBadge status={po.status} />
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatCurrency(po.total)}</p>
-                        <Link href={`/seller/purchase-orders/${po.id}`}>
-                          <Button variant="ghost" size="sm" className="h-7 text-xs">
-                            <Eye className="h-3 w-3 mr-1" /> View
-                          </Button>
-                        </Link>
-                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatDate(po.createdAt)} • {po.items.length} items
+                        {po.pi && <span> • From {po.pi.piNumber}</span>}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="h-[200px] flex flex-col items-center justify-center text-center">
-                  <ClipboardList className="h-12 w-12 text-gray-300 mb-3" />
-                  <p className="text-gray-500">No purchase orders received yet</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    POs will appear here after client approves your PIs
-                  </p>
-                </div>
-              )}
+                    <div className="text-right">
+                      <p className="font-semibold">{formatCurrency(po.total)}</p>
+                      <Link href={`/seller/purchase-orders/${po.id}`}>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs">
+                          <Eye className="h-3 w-3 mr-1" /> View
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>

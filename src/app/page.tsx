@@ -31,14 +31,14 @@ export default function SellerPage() {
     setIsLoading(false);
   };
 
-  // DEMO MODE: Accept any OTP and go to seller dashboard
+  // DEMO MODE: Accept any OTP and go to seller onboarding
   const handleVerifyOTP = async () => {
     if (!otp) return;
     setIsLoading(true);
     // Simulate a brief delay
     await new Promise(resolve => setTimeout(resolve, 500));
     setIsModalOpen(false);
-    router.push("/seller");
+    router.push("/seller/onboarding");
   };
 
   const resetFlow = () => {
