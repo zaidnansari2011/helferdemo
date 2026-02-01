@@ -1,0 +1,1248 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Enums
+enum UserRole {
+  CUSTOMER
+  SELLER
+  DELIVERY_DRIVER
+  PICKUP_HELPER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PICKING
+  PICKED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum VerificationStatus {
+  PENDING
+  IN_PROGRESS
+  VERIFIED
+  REJECTED
+}
+
+enum OnboardingStep {
+  BUSINESS_DETAILS
+  SELLER_DETAILS
+  BRAND_DETAILS
+  BANK_DETAILS
+  SHIPPING_LOCATIONS
+  DIGITAL_SIGNATURE
+  VERIFY_AND_SUBMIT
+  COMPLETED
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+enum UnitOfMeasure {
+  PIECE
+  KG
+  GRAM
+  LITER
+  ML
+  BOX
+  CARTON
+  PACK
+  DOZEN
+  METER
+  SQFT
+}
+
+enum ColdChainRequirement {
+  NONE
+  CHILLED      // 0-4°C
+  FROZEN       // -18°C
+  AMBIENT      // Room temperature controlled
+}
+
+enum HazardousType {
+  NONE
+  FLAMMABLE
+  CORROSIVE
+  TOXIC
+  EXPLOSIVE
+  OXIDIZING
+  COMPRESSED_GAS
+  RADIOACTIVE
+  BIOHAZARD
+}
+
+model User {
+  id                  String    @id
+  name                String
+  email               String
+  emailVerified       Boolean
+  image               String?
+  createdAt           DateTime
+  updatedAt           DateTime
+  phoneNumber         String?
+  phoneNumberVerified Boolean?
+  sessions            Session[]
+  accounts            Account[]
+  profile             UserProfile?
+
+  @@unique([email])
+  @@unique([phoneNumber])
+  @@map("user")
+}
+
+model UserProfile {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deletedAt           DateTime?
+  role                UserRole  @default(CUSTOMER)
+  // Seller Onboarding Fields
+  // Business Details
+  businessCategories String? // JSON array of category IDs
+  retailChannels     String? // JSON: {"online": "website.com", "offline": "store"}
+  socialChannels     String? // JSON: {"instagram": "handle", "facebook": "page"}
+  monthlySales       String? // Range like "10L-50L"
+  designation        String? // "Owner", "Manager", etc.
+
+  // GST & Legal Details  
+  gstNumber             String?
+  legalBusinessName     String?
+  gstVerificationStatus VerificationStatus @default(PENDING)
+
+  // Brand Details
+  brandName        String?
+  brandDescription String?
+  brandLogo        String? // Image URL
+  brandLogoUrl     String? // Alternative field name used in mutation
+  brandWebsite     String?
+  trademarkAuthDocumentUrl     String? // Brand authorization document URL @map("brandAuthDocumentUrl")
+  sellerAuthDocumentUrl    String? // Seller authorization document URL
+
+  // Bank Details
+  bankAccountNumber      String?
+  bankAccountConfirm     String? // Re-enter field
+  ifscCode               String?
+  bankType               String? // "Savings", "Current", etc.
+  bankVerificationStatus VerificationStatus @default(PENDING)
+
+  // Digital Signature
+  digitalSignature String? // Base64 encoded signature image
+  signatureDate    DateTime?
+
+  // Onboarding Progress
+  onboardingStep     OnboardingStep     @default(BUSINESS_DETAILS)
+  verificationStatus VerificationStatus @default(PENDING)
+  approvedAt         DateTime?
+  rejectedAt         DateTime?
+  rejectionReason    String?
+
+  // Relations
+  addresses      Address[]
+  orders         Order[]
+  paymentMethods PaymentMethod[]
+
+  // Seller relations
+  warehouses        Warehouse[]
+  products          Product[]
+  shippingLocations ShippingLocation[]
+
+  // B2B Procurement relations (Seller side)
+  proformaInvoices  ProformaInvoice[]  @relation("SellerPIs")
+  purchaseOrders    PurchaseOrder[]    @relation("SellerPOs")
+  invoices          Invoice[]          @relation("SellerInvoices")
+
+  // Driver/Helper relations
+  driverOrders     Order[]            @relation("DriverOrders")
+  helperOrders     Order[]            @relation("HelperOrders")
+  earnings         Earning[]
+  deliveryTracking DeliveryTracking[]
+
+  // Delivery Partner Onboarding Fields
+  // Personal Information
+  dateOfBirth   DateTime?
+  gender        String? // "MALE", "FEMALE", "OTHER"
+  profilePhoto  String?
+
+  // Address Details (JSON strings)
+  currentAddress    String?
+  permanentAddress  String?
+
+  // Emergency Contact
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
+
+  // Identity Documents
+  aadhaarNumber         String?
+  aadhaarFrontUrl       String?
+  aadhaarBackUrl        String?
+  panNumber             String?
+  panCardUrl            String?
+  drivingLicenseNumber  String?
+  drivingLicenseUrl     String?
+
+  // Vehicle Details (for DELIVERY_DRIVER)
+  vehicleType            String? // "Bike", "Scooter", "Bicycle", "Car"
+  vehicleNumber          String?
+  vehicleModel           String?
+  vehicleRcUrl           String?
+  vehicleInsuranceUrl    String?
+  vehicleInsuranceExpiry DateTime?
+
+  // Work Preference
+  preferredWorkingHours  String? // "Morning", "Evening", "Night", "Flexible"
+  preferredDeliveryZones String? // JSON array
+
+  // Partner Availability & Schedule
+  isOnline               Boolean   @default(false)
+  lastOnlineAt           DateTime?
+  autoAcceptOrders       Boolean   @default(false)
+  maxConcurrentOrders    Int       @default(1)
+  currentBreakStartedAt  DateTime?
+  currentBreakReason     String?
+  totalBreakMinutesToday Int       @default(0)
+  todayShiftStartedAt    DateTime?
+  todayShiftEndedAt      DateTime?
+
+  // Partner Onboarding Status
+  partnerOnboardingStep        String?    @default("PERSONAL_INFO")
+  partnerOnboardingCompletedAt DateTime?
+  backgroundCheckStatus        String?    @default("PENDING")
+  backgroundCheckNotes         String?
+  termsAcceptedAt              DateTime?
+  isActive                     Boolean    @default(true)
+
+  // Schedule relation
+  schedules              PartnerSchedule[]
+
+  @@unique([gstNumber])
+  @@unique([aadhaarNumber])
+  @@unique([panNumber])
+  @@unique([drivingLicenseNumber])
+  @@unique([vehicleNumber])
+  @@index([role])
+  @@index([onboardingStep])
+  @@index([verificationStatus])
+  @@index([isOnline])
+  @@index([deletedAt])
+  @@index([partnerOnboardingStep])
+  @@index([backgroundCheckStatus])
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+// Address Management
+model Address {
+  id            String    @id @default(cuid())
+  userId        String
+  title         String // "Home", "Office", etc.
+  fullAddress   String
+  landmark      String?
+  pincode       String
+  latitude      Float?
+  longitude     Float?
+  receiverName  String?
+  receiverPhone String?
+  isDefault     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  user   UserProfile    @relation(fields: [userId], references: [id])
+  orders Order[]
+
+  @@index([userId])
+  @@index([pincode])
+  @@index([deletedAt])
+  @@map("address")
+}
+
+// Shipping Locations (Seller Onboarding)
+model ShippingLocation {
+  id           String    @id @default(cuid())
+  sellerId     String
+  businessName String
+  gstNumber    String
+  address      String
+  pincode      String
+  state        String
+  isDefault    Boolean   @default(false)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  seller     UserProfile @relation(fields: [sellerId], references: [id])
+  warehouses Warehouse[]
+
+  @@index([sellerId])
+  @@index([pincode])
+  @@index([gstNumber])
+  @@index([deletedAt])
+  @@map("shipping_location")
+}
+
+// Product Catalog
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  image       String?
+  parentId    String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@index([parentId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("category")
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  
+  // Basic Information
+  productCode String    @unique @default("PRD-TEMP") // Auto-generated: PRD-2026-00001
+  name        String
+  description String
+  brand       String?
+  manufacturer String?
+  sku         String    @unique
+  
+  // Pricing & Tax
+  basePrice         Float
+  taxInclusive      Boolean   @default(false) // Price includes GST or not
+  gstRate           Float     @default(0) // GST percentage
+  cessPercentage    Float     @default(0) // Additional cess for luxury/specific items
+  hsnCode           String? // HSN/SAC code for GST compliance
+  
+  // Product Specifications
+  unitOfMeasure     UnitOfMeasure @default(PIECE)
+  weight            Float? // in kg
+  dimensions        String? // JSON: {"length": 10, "width": 5, "height": 15, "unit": "cm"}
+  packagingType     String? // "Box", "Carton", "Pallet", etc.
+  itemsPerPackage   Int?    @default(1)
+  
+  // Regulatory & Compliance
+  isHazardous       Boolean      @default(false)
+  hazardousType     HazardousType @default(NONE)
+  msdsDocument      String? // Material Safety Data Sheet URL
+  certificates      String? // JSON array of certificate URLs (ISO, FDA, CE, BIS, FSSAI, etc.)
+  countryOfOrigin   String? @default("India")
+  requiresBatchTracking Boolean @default(false)
+  shelfLifeDays     Int? // For perishables/chemicals
+  
+  // Quick-Commerce Essentials
+  coldChainRequired ColdChainRequirement @default(NONE)
+  pickupInstructions String? // "Fragile, pack separately", "Check seal", etc.
+  storageConditions  String? // Temperature, humidity requirements
+  
+  // Procurement Details
+  minimumOrderQty   Int      @default(1)
+  leadTimeDays      Int      @default(0) // Days to fulfill order
+  manufacturerPartNumber String? // MPN
+  barcode           String?  @unique // EAN/UPC for inventory scanning
+  reorderLevel      Int?     @default(10) // For automated alerts
+  
+  // Additional Details
+  warrantyMonths    Int?     @default(0)
+  isReturnable      Boolean  @default(true)
+  returnWindowDays  Int?     @default(7)
+  productDocuments  String? // JSON array: spec sheets, test certificates, datasheets
+  
+  // E-Invoice & Tax
+  requiresEInvoice  Boolean  @default(true) // IRN requirement
+  
+  // Media & Status
+  images      String // JSON array of image URLs
+  status      ProductStatus @default(DRAFT)
+  
+  // Relations
+  categoryId  String
+  sellerId    String
+  parentProductId String? // For variant grouping (parent-child relationship)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  category         Category         @relation(fields: [categoryId], references: [id])
+  seller           UserProfile      @relation(fields: [sellerId], references: [id])
+  parentProduct    Product?         @relation("ProductVariants", fields: [parentProductId], references: [id])
+  childProducts    Product[]        @relation("ProductVariants")
+  variants         ProductVariant[]
+  orderItems       OrderItem[]
+  productLocations ProductLocation[]
+
+  @@index([categoryId])
+  @@index([sellerId])
+  @@index([productCode])
+  @@index([sku])
+  @@index([hsnCode])
+  @@index([barcode])
+  @@index([status])
+  @@index([parentProductId])
+  @@index([deletedAt])
+  @@map("product")
+}
+
+model ProductVariant {
+  id         String    @id @default(cuid())
+  productId  String
+  name       String // "500ml", "M12x50", "60W Warm White"
+  sku        String    @unique
+  barcode    String?   @unique // Generated barcode for warehouse scanning
+  price      Float
+  attributes String // JSON: {"size": "500ml", "material": "plastic", "color": "Black"}
+  
+  // Warehouse Quick-Pick Fields
+  storageLocation String? // "Aisle 4, Shelf B" - Quick reference
+  binId           String? // Direct link to specific bin for fastest picking
+  pickInstructions String? // Variant-specific pick notes
+  
+  // Stock Status
+  status     ProductStatus @default(ACTIVE)
+  isActive   Boolean   @default(true)
+  
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  product          Product           @relation(fields: [productId], references: [id])
+  productLocations ProductLocation[]
+  orderItems       OrderItem[]
+
+  @@index([productId])
+  @@index([sku])
+  @@index([barcode])
+  @@index([binId])
+  @@index([status])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("product_variant")
+}
+
+// Warehouse & Inventory
+model Warehouse {
+  id                 String    @id @default(cuid())
+  name               String
+  code               String    @unique // "LO", "MH", etc.
+  address            String
+  pincode            String
+  latitude           Float
+  longitude          Float
+  sellerId           String
+  shippingLocationId String
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  seller           UserProfile      @relation(fields: [sellerId], references: [id])
+  shippingLocation ShippingLocation @relation(fields: [shippingLocationId], references: [id])
+  floorPlans       WarehouseFloorPlan[]
+  orders           Order[]
+  zones            DeliveryZone[]
+
+  @@index([sellerId])
+  @@index([shippingLocationId])
+  @@index([code])
+  @@index([pincode])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("warehouse")
+}
+
+model WarehouseFloorPlan {
+  id          String   @id @default(cuid())
+  warehouseId String
+  floor       String   // "L0", "L1", etc.
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  areas     WarehouseArea[]
+
+  @@unique([warehouseId, floor])
+  @@index([warehouseId])
+  @@index([floor])
+  @@index([deletedAt])
+  @@map("warehouse_floor_plan")
+}
+
+model WarehouseArea {
+  id          String   @id @default(cuid())
+  floorPlanId String
+  code        String
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  floorPlan WarehouseFloorPlan @relation(fields: [floorPlanId], references: [id])
+  racks     WarehouseRack[]
+
+  @@unique([floorPlanId, code])
+  @@index([floorPlanId])
+  @@map("warehouse_area")
+}
+
+model WarehouseRack {
+  id        String   @id @default(cuid())
+  areaId    String
+  number    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  area    WarehouseArea @relation(fields: [areaId], references: [id])
+  shelves WarehouseShelf[]
+
+  @@unique([areaId, number])
+  @@index([areaId])
+  @@map("warehouse_rack")
+}
+
+model WarehouseShelf {
+  id        String   @id @default(cuid())
+  rackId    String
+  level     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rack WarehouseRack @relation(fields: [rackId], references: [id])
+  bins WarehouseBin[]
+
+  @@unique([rackId, level])
+  @@index([rackId])
+  @@map("warehouse_shelf")
+}
+
+model WarehouseBin {
+  id        String   @id @default(cuid())
+  shelfId   String
+  code      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shelf             WarehouseShelf  @relation(fields: [shelfId], references: [id])
+  productLocations  ProductLocation[]
+
+  @@unique([shelfId, code])
+  @@index([shelfId])
+  @@map("warehouse_bin")
+}
+
+model ProductLocation {
+  id               String   @id @default(cuid())
+  productId        String?  // Optional: for product-level assignment
+  productVariantId String?  // Optional: for variant-level assignment
+  binId            String
+  quantity         Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  product        Product?        @relation(fields: [productId], references: [id])
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
+  bin            WarehouseBin    @relation(fields: [binId], references: [id])
+
+  @@unique([productId, binId])
+  @@unique([productVariantId, binId])
+  @@index([binId])
+  @@index([productId])
+  @@index([productVariantId])
+  @@map("product_location")
+}
+
+
+
+// Order Management
+model Order {
+  id               String        @id @default(cuid())
+  orderNumber      String        @unique
+  userId           String
+  warehouseId      String
+  addressId        String
+  timeSlotId       String?
+  status           OrderStatus   @default(PENDING)
+  subtotal         Float
+  deliveryFee      Float
+  taxes            Float
+  total            Float
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentMethod    String?
+  pickupHelperId   String?
+  deliveryDriverId String?
+  notes            String?
+  pickedAt         DateTime?
+  deliveredAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
+
+  user           UserProfile               @relation(fields: [userId], references: [id])
+  warehouse      Warehouse          @relation(fields: [warehouseId], references: [id])
+  address        Address            @relation(fields: [addressId], references: [id])
+  timeSlot       TimeSlot?          @relation(fields: [timeSlotId], references: [id])
+  pickupHelper   UserProfile?              @relation("HelperOrders", fields: [pickupHelperId], references: [id])
+  deliveryDriver UserProfile?              @relation("DriverOrders", fields: [deliveryDriverId], references: [id])
+  items          OrderItem[]
+  tracking       DeliveryTracking[]
+  earnings       Earning[]
+
+  @@index([userId])
+  @@index([warehouseId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("order")
+}
+
+model OrderItem {
+  id               String    @id @default(cuid())
+  orderId          String
+  productId        String
+  productVariantId String
+  quantity         Int
+  unitPrice        Float
+  totalPrice       Float
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime?
+
+  order          Order          @relation(fields: [orderId], references: [id])
+  product        Product        @relation(fields: [productId], references: [id])
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([deletedAt])
+  @@map("order_item")
+}
+
+// Delivery System
+model DeliveryZone {
+  id          String    @id @default(cuid())
+  name        String
+  warehouseId String
+  pincode     String
+  radius      Float     @default(5.0) // in km
+  deliveryFee Float
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
+  timeSlots TimeSlot[]
+
+  @@index([warehouseId])
+  @@index([pincode])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("delivery_zone")
+}
+
+model TimeSlot {
+  id            String    @id @default(cuid())
+  zoneId        String
+  date          DateTime // Date for the slot
+  startTime     String // "09:00"
+  endTime       String // "09:30"
+  maxOrders     Int       @default(10)
+  currentOrders Int       @default(0)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  zone   DeliveryZone @relation(fields: [zoneId], references: [id])
+  orders Order[]
+
+  @@unique([zoneId, date, startTime])
+  @@index([zoneId])
+  @@index([date])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("time_slot")
+}
+
+model DeliveryTracking {
+  id        String    @id @default(cuid())
+  orderId   String
+  driverId  String
+  latitude  Float
+  longitude Float
+  timestamp DateTime  @default(now())
+  deletedAt DateTime?
+
+  order  Order @relation(fields: [orderId], references: [id])
+  driver UserProfile  @relation(fields: [driverId], references: [id])
+
+  @@index([orderId])
+  @@index([driverId])
+  @@index([timestamp])
+  @@index([deletedAt])
+  @@map("delivery_tracking")
+}
+
+// Earnings & Payments
+model Earning {
+  id                String    @id @default(cuid())
+  userId            String
+  orderId           String
+  type              String // "PICKUP", "DELIVERY"
+  amount            Float
+  isPayoutProcessed Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  deletedAt         DateTime?
+
+  user        UserProfile         @relation(fields: [userId], references: [id])
+  order       Order        @relation(fields: [orderId], references: [id])
+  payoutItems PayoutItem[]
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([type])
+  @@index([isPayoutProcessed])
+  @@index([deletedAt])
+  @@map("earning")
+}
+
+model Payout {
+  id            String       @id @default(cuid())
+  userId        String
+  totalAmount   Float
+  status        PayoutStatus @default(PENDING)
+  bankReference String?
+  processedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  items PayoutItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("payout")
+}
+
+model PayoutItem {
+  id        String    @id @default(cuid())
+  payoutId  String
+  earningId String
+  amount    Float
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  payout  Payout  @relation(fields: [payoutId], references: [id])
+  earning Earning @relation(fields: [earningId], references: [id])
+
+  @@index([payoutId])
+  @@index([earningId])
+  @@index([deletedAt])
+  @@map("payout_item")
+}
+
+model PaymentMethod {
+  id         String    @id @default(cuid())
+  userId     String
+  type       String // "CARD", "UPI", "WALLET"
+  provider   String // "RAZORPAY", "PAYTM", etc.
+  identifier String // Last 4 digits, UPI ID, etc.
+  isDefault  Boolean   @default(false)
+  isActive   Boolean   @default(true)
+  metadata   String // JSON for additional data
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  user UserProfile @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("payment_method")
+}
+
+// Partner Schedule & Shift Management
+model PartnerSchedule {
+  id           String    @id @default(cuid())
+  partnerId    String
+  dayOfWeek    Int       // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime    String    // "09:00" format (24-hour)
+  endTime      String    // "18:00" format (24-hour)
+  isEnabled    Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  partner UserProfile @relation(fields: [partnerId], references: [id])
+
+  @@unique([partnerId, dayOfWeek])
+  @@index([partnerId])
+  @@index([dayOfWeek])
+  @@index([isEnabled])
+  @@index([deletedAt])
+  @@map("partner_schedule")
+}
+
+// Break Log for tracking breaks
+model PartnerBreakLog {
+  id          String    @id @default(cuid())
+  partnerId   String
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  reason      String    // "LUNCH", "PERSONAL", "PRAYER", "OTHER"
+  duration    Int?      // Duration in minutes (calculated on end)
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  @@index([partnerId])
+  @@index([startedAt])
+  @@index([deletedAt])
+  @@map("partner_break_log")
+}
+
+// Shift Log for tracking daily shifts
+model PartnerShiftLog {
+  id            String    @id @default(cuid())
+  partnerId     String
+  date          DateTime  // Date of the shift
+  startedAt     DateTime
+  endedAt       DateTime?
+  totalMinutes  Int?      // Total active minutes
+  breakMinutes  Int       @default(0) // Total break minutes
+  ordersCount   Int       @default(0) // Orders completed
+  earnings      Float     @default(0) // Total earnings
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  @@unique([partnerId, date])
+  @@index([partnerId])
+  @@index([date])
+  @@index([deletedAt])
+  @@map("partner_shift_log")
+}
+
+// Admin Settings - Global configuration for the platform
+model AdminSettings {
+  id                    String   @id @default("global") // Single row pattern
+  
+  // System Settings
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String   @default("We're currently performing maintenance. Please check back soon.")
+  
+  // Approval Settings
+  autoApproveProducts   Boolean  @default(false)
+  autoApproveSellers    Boolean  @default(false)
+  
+  // Notification Settings
+  emailNotifications    Boolean  @default(true)
+  pushNotifications     Boolean  @default(true)
+  weeklyReports         Boolean  @default(true)
+  
+  // Delivery Settings
+  deliveryRadius        Int      @default(10)        // in km
+  minimumOrderAmount    Float    @default(99)        // in currency
+  expressDeliveryFee    Float    @default(29)        // in currency
+  standardDeliveryFee   Float    @default(0)         // in currency
+  freeDeliveryThreshold Float    @default(199)       // order amount for free delivery
+  
+  // Security Settings
+  require2FA            Boolean  @default(false)
+  sessionTimeoutMins    Int      @default(60)        // in minutes
+  ipWhitelisting        Boolean  @default(false)
+  whitelistedIPs        String   @default("[]")      // JSON array of IPs
+  
+  // Timestamps
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  updatedBy             String?  // User ID who last updated
+
+  @@map("admin_settings")
+}
+
+// ============================================================================
+// B2B PROCUREMENT SYSTEM
+// ============================================================================
+
+// PI Status Workflow: DRAFT -> SENT -> UNDER_REVIEW -> APPROVED -> FULFILLED -> BILLED -> PAID
+enum PIStatus {
+  DRAFT           // Seller is preparing the PI
+  SENT            // Sent to client for review
+  UNDER_REVIEW    // Client is reviewing
+  APPROVED        // Client approved, ready for PO
+  REJECTED        // Client rejected with reason
+  FULFILLED       // Products delivered to client
+  BILLED          // Final invoice raised
+  PAID            // Payment received
+  CANCELLED       // PI cancelled
+}
+
+// PO Status: PENDING -> ACKNOWLEDGED -> IN_PROGRESS -> SHIPPED -> DELIVERED
+enum POStatus {
+  PENDING         // Awaiting seller acknowledgement
+  ACKNOWLEDGED    // Seller confirmed receipt
+  IN_PROGRESS     // Seller preparing order
+  SHIPPED         // Products shipped
+  DELIVERED       // Products received by client
+  CANCELLED       // PO cancelled
+}
+
+// Invoice Status
+enum InvoiceStatus {
+  DRAFT           // Being prepared
+  SENT            // Sent to client
+  UNPAID          // Awaiting payment
+  PARTIAL_PAID    // Partially paid
+  PAID            // Fully paid
+  OVERDUE         // Past due date
+  CANCELLED       // Cancelled
+}
+
+// Proforma Invoice - Seller issues to Client
+model ProformaInvoice {
+  id              String     @id @default(cuid())
+  piNumber        String     @unique // PI-2026-00001 format
+  sellerId        String
+  
+  // PI Details
+  issueDate       DateTime   @default(now())
+  validUntil      DateTime   // Typically 30 days from issue
+  status          PIStatus   @default(DRAFT)
+  
+  // Pricing
+  subtotal        Float      @default(0)
+  taxRate         Float      @default(18) // GST percentage
+  taxAmount       Float      @default(0)
+  discount        Float      @default(0)
+  total           Float      @default(0)
+  
+  // Terms & Notes
+  creditTerms     String     @default("NET_30") // NET_30, NET_60, NET_90, IMMEDIATE
+  deliveryTerms   String?    // Delivery conditions
+  notes           String?    // Additional notes
+  
+  // Client Response
+  rejectionReason String?    // If rejected by client
+  approvedAt      DateTime?
+  approvedBy      String?    // Admin user ID who approved
+  
+  // Timestamps
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  seller          UserProfile @relation("SellerPIs", fields: [sellerId], references: [id])
+  items           PIItem[]
+  purchaseOrders  PurchaseOrder[]
+  invoices        Invoice[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([piNumber])
+  @@index([deletedAt])
+  @@map("proforma_invoice")
+}
+
+model PIItem {
+  id           String   @id @default(cuid())
+  piId         String
+  productId    String
+  variantId    String?
+  
+  // Item Details
+  description  String   // Product name/description at time of PI
+  quantity     Int
+  unitPrice    Float
+  totalPrice   Float
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  pi           ProformaInvoice @relation(fields: [piId], references: [id], onDelete: Cascade)
+
+  @@index([piId])
+  @@index([productId])
+  @@map("pi_item")
+}
+
+// Purchase Order - Client issues to Seller (after PI approval)
+model PurchaseOrder {
+  id                  String     @id @default(cuid())
+  poNumber            String     @unique // PO-2026-00001 format
+  piId                String?    // Reference to original PI (optional for direct POs)
+  sellerId            String
+  
+  // PO Details
+  issueDate           DateTime   @default(now())
+  expectedDelivery    DateTime
+  status              POStatus   @default(PENDING)
+  
+  // Pricing (copied from PI or set directly)
+  subtotal            Float
+  taxAmount           Float
+  discount            Float      @default(0)
+  total               Float
+  
+  // Delivery Details
+  deliveryAddress     String
+  deliveryInstructions String?
+  
+  // Fulfillment Tracking
+  acknowledgedAt      DateTime?
+  shippedAt           DateTime?
+  deliveredAt         DateTime?
+  trackingNumber      String?
+  
+  // Notes
+  internalNotes       String?    // Seller's internal notes
+  clientNotes         String?    // Notes from client
+  
+  // Timestamps
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  deletedAt           DateTime?
+
+  // Relations
+  seller              UserProfile @relation("SellerPOs", fields: [sellerId], references: [id])
+  pi                  ProformaInvoice? @relation(fields: [piId], references: [id])
+  items               POItem[]
+  invoices            Invoice[]
+
+  @@index([sellerId])
+  @@index([piId])
+  @@index([status])
+  @@index([poNumber])
+  @@index([expectedDelivery])
+  @@index([deletedAt])
+  @@map("purchase_order")
+}
+
+model POItem {
+  id           String   @id @default(cuid())
+  poId         String
+  productId    String
+  variantId    String?
+  
+  // Item Details
+  description  String
+  quantity     Int
+  unitPrice    Float
+  totalPrice   Float
+  
+  // Fulfillment
+  quantityShipped   Int @default(0)
+  quantityReceived  Int @default(0)
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  po           PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  @@index([poId])
+  @@index([productId])
+  @@map("po_item")
+}
+
+// Invoice - Final bill from Seller to Client
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique // INV-2026-00001 format
+  poId            String?       // Reference to PO
+  piId            String?       // Reference to original PI
+  sellerId        String
+  
+  // Invoice Details
+  issueDate       DateTime      @default(now())
+  dueDate         DateTime      // Based on credit terms
+  status          InvoiceStatus @default(DRAFT)
+  
+  // Pricing
+  subtotal        Float
+  taxRate         Float         @default(18)
+  taxAmount       Float
+  discount        Float         @default(0)
+  totalAmount     Float
+  
+  // Payment Tracking
+  paidAmount      Float         @default(0)
+  balanceAmount   Float         // Calculated: totalAmount - paidAmount
+  lastPaymentDate DateTime?
+  
+  // Notes
+  notes           String?
+  paymentTerms    String?       // Additional payment terms
+  
+  // Timestamps
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  seller          UserProfile   @relation("SellerInvoices", fields: [sellerId], references: [id])
+  po              PurchaseOrder? @relation(fields: [poId], references: [id])
+  pi              ProformaInvoice? @relation(fields: [piId], references: [id])
+  items           InvoiceItem[]
+  payments        PaymentRecord[]
+
+  @@index([sellerId])
+  @@index([poId])
+  @@index([piId])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@map("invoice")
+}
+
+model InvoiceItem {
+  id           String   @id @default(cuid())
+  invoiceId    String
+  productId    String
+  variantId    String?
+  
+  // Item Details
+  description  String
+  quantity     Int
+  unitPrice    Float
+  totalPrice   Float
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+
+  // Relations
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("invoice_item")
+}
+
+// Payment Records - Track payments against invoices
+model PaymentRecord {
+  id              String   @id @default(cuid())
+  invoiceId       String
+  
+  // Payment Details
+  amount          Float
+  paymentDate     DateTime @default(now())
+  paymentMethod   String   // BANK_TRANSFER, CHEQUE, UPI, CASH
+  transactionRef  String?  // Bank reference / UTR number
+  
+  // Cheque Details (if applicable)
+  chequeNumber    String?
+  chequeDate      DateTime?
+  bankName        String?
+  
+  // Notes
+  notes           String?
+  recordedBy      String?  // Admin user ID who recorded
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  invoice         Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@index([paymentDate])
+  @@index([transactionRef])
+  @@map("payment_record")
+}

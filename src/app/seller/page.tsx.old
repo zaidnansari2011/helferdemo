@@ -1,0 +1,742 @@
+"use client"
+
+import { useSession } from "@/lib/auth-client"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Package, TrendingUp, TrendingDown, Users, DollarSign, ArrowRight, AlertCircle, Building2, ShoppingCart, AlertTriangle } from "lucide-react"
+import { trpc } from "@/lib/trpc-provider"
+import { useQuery } from "@tanstack/react-query"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { AreaChart, Area, CartesianGrid, XAxis } from "recharts"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+
+type Period = "7d" | "30d" | "90d" | "12m" | "all"
+type ChartPeriod = "7d" | "30d" | "90d" | "12m"
+
+export default function SellerDashboard() {
+  const { data: session, isPending: sessionLoading } = useSession()
+  const router = useRouter()
+  const [period, setPeriod] = useState<Period>("30d")
+
+  // Chart period excludes "all" since chart APIs don't support it
+  const chartPeriod: ChartPeriod = period === "all" ? "12m" : period
+
+  // TRPC queries for dashboard data - only fetch when user is logged in
+  const { data: dashboardData, isLoading: dashboardLoading, error: dashboardError } = useQuery({
+    ...trpc.seller.getDashboardData.queryOptions(),
+    enabled: !!session?.user,
+    retry: false,
+  })
+  
+  const { data: statsData, isLoading: statsLoading, error: statsError } = useQuery({
+    ...trpc.seller.getSellerStats.queryOptions(),
+    enabled: !!session?.user && !!dashboardData, // Only fetch if we have dashboard data
+    retry: false,
+  })
+
+  // Real analytics data - only fetch if user has seller access
+  const hasSellerAccess = !!dashboardData && !dashboardError
+  
+  const { data: analyticsData, isLoading: analyticsLoading } = useQuery({
+    ...trpc.analytics.getDashboardSummary.queryOptions({ period }),
+    enabled: hasSellerAccess,
+  })
+
+  const { data: revenueChartData, isLoading: revenueChartLoading } = useQuery({
+    ...trpc.analytics.getRevenueChartData.queryOptions({ period: chartPeriod }),
+    enabled: hasSellerAccess,
+  })
+
+  const { data: ordersChartData, isLoading: ordersChartLoading } = useQuery({
+    ...trpc.analytics.getOrdersChartData.queryOptions({ period: chartPeriod }),
+    enabled: hasSellerAccess,
+  })
+
+  const { data: topProducts, isLoading: topProductsLoading } = useQuery({
+    ...trpc.analytics.getTopProducts.queryOptions({ period, limit: 5 }),
+    enabled: hasSellerAccess,
+  })
+
+  const { data: categoryPerformance, isLoading: categoryLoading } = useQuery({
+    ...trpc.analytics.getCategoryPerformance.queryOptions({ period }),
+    enabled: hasSellerAccess,
+  })
+
+  // Low stock alerts
+  const { data: lowStockData, isLoading: lowStockLoading } = useQuery({
+    ...trpc.analytics.getLowStockProducts.queryOptions({ threshold: 10, limit: 5 }),
+    enabled: hasSellerAccess,
+  })
+
+  // Auth redirect logic
+  useEffect(() => {
+    if (!sessionLoading && !session?.user) {
+      router.push('/')
+    }
+  }, [session, sessionLoading, router])
+
+  // Redirect to pending page if verification is pending/in-progress
+  useEffect(() => {
+    if (dashboardData?.profile.verificationStatus === "PENDING" || 
+        dashboardData?.profile.verificationStatus === "IN_PROGRESS") {
+      router.push('/seller/pending')
+    }
+  }, [dashboardData?.profile.verificationStatus, router])
+
+  // Show loading while checking auth or loading data
+  if (sessionLoading || (dashboardLoading && session?.user)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-navy mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Handle errors
+  if (dashboardError || statsError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-brand-red mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+          <p className="text-gray-600">You need a seller account to access this dashboard.</p>
+          <Button onClick={() => router.push('/seller/onboarding')} className="mt-4">
+            Complete Seller Onboarding
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated or no dashboard data
+  if (!session?.user || !dashboardData) {
+    return null
+  }
+
+  // If rejected, show rejection message instead of dashboard
+  if (dashboardData.profile.verificationStatus === "REJECTED") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertCircle className="h-12 w-12 text-brand-red mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Application Rejected</h1>
+          <p className="text-gray-600 mb-2">Unfortunately, your seller application was not approved.</p>
+          {dashboardData.profile.rejectionReason && (
+            <p className="text-sm text-gray-500 mb-4">Reason: {dashboardData.profile.rejectionReason}</p>
+          )}
+          <Button onClick={() => router.push('/seller/onboarding')} className="mt-4">
+            Resubmit Application
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const { user, profile } = dashboardData
+  const stats = statsData || { totalProducts: 0, totalOrders: 0, totalRevenue: 0, totalCustomers: 0 }
+
+  // Helper function to render percentage change
+  const renderChange = (change: number | undefined) => {
+    if (change === undefined || change === null) return null
+    const isPositive = change >= 0
+    return (
+      <span className={`flex items-center text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+        {isPositive ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+        {isPositive ? '+' : ''}{change.toFixed(1)}%
+      </span>
+    )
+  }
+
+  // Get period label
+  const getPeriodLabel = () => {
+    switch (period) {
+      case "7d": return "Last 7 days"
+      case "30d": return "Last 30 days"
+      case "90d": return "Last 90 days"
+      case "12m": return "Last 12 months"
+      case "all": return "All time"
+    }
+  }
+
+  // Determine verification status message
+  const getVerificationStatus = () => {
+    switch (profile.verificationStatus) {
+      case "PENDING":
+        return {
+          message: "Your seller application has been submitted for review. We'll notify you once it's approved and you can start selling.",
+          timeMessage: "Expected review time: 2-3 business days",
+          bgColor: "bg-yellow-50 border-yellow-200",
+          iconColor: "bg-yellow-100 text-yellow-600",
+          textColor: "text-yellow-800",
+          subTextColor: "text-yellow-700"
+        }
+      case "IN_PROGRESS":
+        return {
+          message: "Your application is currently being reviewed by our team.",
+          timeMessage: "We'll update you soon with the status",
+          bgColor: "bg-brand-navy-light border-brand-navy/20",
+          iconColor: "bg-brand-navy/10 text-brand-navy",
+          textColor: "text-brand-navy-dark",
+          subTextColor: "text-brand-navy"
+        }
+      case "VERIFIED":
+        return {
+          message: "Congratulations! Your seller account has been verified. You can now start adding products and receiving orders.",
+          timeMessage: "You're all set to start selling!",
+          bgColor: "bg-green-50 border-green-200",
+          iconColor: "bg-green-100 text-green-600",
+          textColor: "text-green-800",
+          subTextColor: "text-green-700"
+        }
+      case "REJECTED":
+        return {
+          message: profile.rejectionReason || "Your seller application was rejected. Please contact support for more information.",
+          timeMessage: "You can resubmit your application after addressing the issues",
+          bgColor: "bg-brand-red-light border-brand-red/20",
+          iconColor: "bg-brand-red/10 text-brand-red",
+          textColor: "text-brand-red-dark",
+          subTextColor: "text-brand-red"
+        }
+      default:
+        return {
+          message: "Application status unknown.",
+          timeMessage: "",
+          bgColor: "bg-gray-50 border-gray-200",
+          iconColor: "bg-gray-100 text-gray-600",
+          textColor: "text-gray-800",
+          subTextColor: "text-gray-700"
+        }
+    }
+  }
+
+  const verificationStatus = getVerificationStatus()
+  const isVerified = profile.verificationStatus === "VERIFIED"
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold">Seller Dashboard</h1>
+            <p className="text-muted-foreground">
+              Manage your products, orders, and business analytics
+            </p>
+          </div>
+          <Select value={period} onValueChange={(value: Period) => setPeriod(value)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+              <SelectItem value="12m">Last 12 months</SelectItem>
+              <SelectItem value="all">All time</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 pb-12">
+        {/* Verification Status Message */}
+        <div className={`${verificationStatus.bgColor} border rounded-lg p-6 mb-8`}>
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <div className={`w-10 h-10 ${verificationStatus.iconColor} rounded-full flex items-center justify-center`}>
+                <span className="font-semibold">
+                  {profile.verificationStatus === "VERIFIED" ? "✓" : 
+                   profile.verificationStatus === "REJECTED" ? "✗" : "⏳"}
+                </span>
+              </div>
+            </div>
+            <div className="ml-4">
+              <h3 className={`text-lg font-semibold ${verificationStatus.textColor}`}>
+                {profile.verificationStatus === "VERIFIED" ? "Account Verified!" :
+                 profile.verificationStatus === "REJECTED" ? "Application Rejected" :
+                 profile.verificationStatus === "IN_PROGRESS" ? "Review In Progress" :
+                 "Application Submitted"}
+              </h3>
+              <p className={`${verificationStatus.subTextColor} mt-1`}>
+                {verificationStatus.message}
+              </p>
+              {verificationStatus.timeMessage && (
+                <p className={`${verificationStatus.subTextColor} text-sm mt-2`}>
+                  {verificationStatus.timeMessage}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {analyticsLoading ? "..." : `₹${(analyticsData?.revenue?.value || 0).toLocaleString()}`}
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">{getPeriodLabel()}</p>
+                {renderChange(analyticsData?.revenue?.change)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {analyticsLoading ? "..." : analyticsData?.orders?.value || 0}
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">{getPeriodLabel()}</p>
+                {renderChange(analyticsData?.orders?.change)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {analyticsLoading ? "..." : analyticsData?.customers?.value || 0}
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">{getPeriodLabel()}</p>
+                {renderChange(analyticsData?.customers?.change)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {analyticsLoading ? "..." : analyticsData?.products?.value || stats.totalProducts || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Active products
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        {/* Charts Section */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2 mb-6">
+          {/* Revenue Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue Overview</CardTitle>
+              <CardDescription>
+                Revenue trend for {getPeriodLabel().toLowerCase()}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {revenueChartLoading ? (
+                <div className="h-[200px] flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-navy"></div>
+                </div>
+              ) : revenueChartData && revenueChartData.length > 0 ? (
+                <ChartContainer config={{
+                  revenue: {
+                    label: "Revenue",
+                    color: "hsl(var(--chart-1))",
+                  },
+                }}>
+                  <AreaChart
+                    accessibilityLayer
+                    data={revenueChartData}
+                    margin={{
+                      left: 12,
+                      right: 12,
+                    }}
+                  >
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value) => value.slice(0, 3)}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="line" />}
+                    />
+                    <Area
+                      dataKey="revenue"
+                      type="natural"
+                      fill="var(--color-revenue)"
+                      fillOpacity={0.4}
+                      stroke="var(--color-revenue)"
+                    />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  No revenue data available
+                </div>
+              )}
+            </CardContent>
+            <CardFooter>
+              <div className="flex w-full items-start gap-2 text-sm">
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2 leading-none font-medium">
+                    {analyticsData?.revenue?.change !== undefined && analyticsData.revenue.change >= 0 ? (
+                      <>Trending up by {analyticsData.revenue.change.toFixed(1)}% <TrendingUp className="h-4 w-4 text-green-600" /></>
+                    ) : analyticsData?.revenue?.change !== undefined ? (
+                      <>Down by {Math.abs(analyticsData.revenue.change).toFixed(1)}% <TrendingDown className="h-4 w-4 text-red-600" /></>
+                    ) : (
+                      "No comparison data"
+                    )}
+                  </div>
+                  <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                    {getPeriodLabel()}
+                  </div>
+                </div>
+              </div>
+            </CardFooter>
+          </Card>
+
+          {/* Orders Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Trends</CardTitle>
+              <CardDescription>
+                Orders trend for {getPeriodLabel().toLowerCase()}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {ordersChartLoading ? (
+                <div className="h-[200px] flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-navy"></div>
+                </div>
+              ) : ordersChartData && ordersChartData.length > 0 ? (
+                <ChartContainer config={{
+                  orders: {
+                    label: "Orders",
+                    color: "hsl(var(--chart-2))",
+                  },
+                }}>
+                  <AreaChart
+                    accessibilityLayer
+                    data={ordersChartData}
+                    margin={{
+                      left: 12,
+                      right: 12,
+                    }}
+                  >
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value) => value.slice(0, 3)}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="line" />}
+                    />
+                    <Area
+                      dataKey="orders"
+                      type="natural"
+                      fill="var(--color-orders)"
+                      fillOpacity={0.4}
+                      stroke="var(--color-orders)"
+                    />
+                  </AreaChart>
+                </ChartContainer>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  No orders data available
+                </div>
+              )}
+            </CardContent>
+            <CardFooter>
+              <div className="flex w-full items-start gap-2 text-sm">
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2 leading-none font-medium">
+                    {analyticsData?.orders?.change !== undefined && analyticsData.orders.change >= 0 ? (
+                      <>Trending up by {analyticsData.orders.change.toFixed(1)}% <TrendingUp className="h-4 w-4 text-green-600" /></>
+                    ) : analyticsData?.orders?.change !== undefined ? (
+                      <>Down by {Math.abs(analyticsData.orders.change).toFixed(1)}% <TrendingDown className="h-4 w-4 text-red-600" /></>
+                    ) : (
+                      "No comparison data"
+                    )}
+                  </div>
+                  <div className="text-muted-foreground flex items-center gap-2 leading-none">
+                    {getPeriodLabel()}
+                  </div>
+                </div>
+              </div>
+            </CardFooter>
+          </Card>
+        </div>
+
+        {/* Top Products and Category Performance */}
+        <div className="grid gap-6 md:grid-cols-2 mb-6">
+          {/* Top Products */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Products</CardTitle>
+              <CardDescription>Best performing products by revenue</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {topProductsLoading ? (
+                <div className="h-[200px] flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-navy"></div>
+                </div>
+              ) : topProducts && topProducts.length > 0 ? (
+                <div className="space-y-4">
+                  {topProducts.map((item, index) => {
+                    // Parse images JSON - it may be a JSON string or array
+                    let imageUrl: string | null = null;
+                    try {
+                      if (item.product.images) {
+                        const parsed = JSON.parse(item.product.images);
+                        imageUrl = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : null;
+                      }
+                    } catch {
+                      // If not JSON, treat as direct URL
+                      imageUrl = item.product.images || null;
+                    }
+                    
+                    return (
+                      <div key={item.product.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-muted-foreground w-6">#{index + 1}</span>
+                          <div className="h-10 w-10 rounded bg-gray-100 flex items-center justify-center overflow-hidden">
+                            {imageUrl ? (
+                              <img src={imageUrl} alt={item.product.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <Package className="h-5 w-5 text-gray-400" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium truncate max-w-[150px]">{item.product.name}</p>
+                            <p className="text-xs text-muted-foreground">{item.totalQuantity} sold</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold">₹{item.totalRevenue.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  No sales data available
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Category Performance */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Category Performance</CardTitle>
+              <CardDescription>Sales distribution by product categories</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {categoryLoading ? (
+                <div className="h-[200px] flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-navy"></div>
+                </div>
+              ) : categoryPerformance && categoryPerformance.length > 0 ? (
+                <div className="space-y-4">
+                  {categoryPerformance.map((item, index) => {
+                    const colors = ['bg-brand-navy', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500']
+                    return (
+                      <div key={item.category.id} className="flex items-center space-x-4">
+                        <div className="w-28 text-sm font-medium truncate">{item.category.name}</div>
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${colors[index % colors.length]} transition-all duration-500 ease-in-out`}
+                            style={{ width: `${item.percentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="w-16 text-sm text-gray-600 text-right">{item.percentage.toFixed(1)}%</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                  No category data available
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Low Stock Alerts */}
+        {lowStockData && lowStockData.products.length > 0 && (
+          <Card className="mb-6 border-orange-200 bg-orange-50">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  <CardTitle className="text-lg text-orange-800">Inventory Alerts</CardTitle>
+                </div>
+                <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300">
+                  {lowStockData.summary.total} items need attention
+                </Badge>
+              </div>
+              <CardDescription className="text-orange-700">
+                Products below stock threshold ({lowStockData.threshold} units)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {lowStockData.products.map((item) => {
+                  // Parse images JSON
+                  let imageUrl: string | null = null;
+                  try {
+                    if (item.images) {
+                      const parsed = JSON.parse(item.images);
+                      imageUrl = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : null;
+                    }
+                  } catch {
+                    imageUrl = item.images || null;
+                  }
+
+                  return (
+                    <div 
+                      key={item.id} 
+                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-orange-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded bg-gray-100 flex items-center justify-center overflow-hidden">
+                          {imageUrl ? (
+                            <img src={imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <Package className="h-5 w-5 text-gray-400" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium truncate max-w-[200px]">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">{item.category}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <Badge 
+                            variant={item.status === "out_of_stock" ? "destructive" : item.status === "critical" ? "secondary" : "outline"}
+                            className={
+                              item.status === "out_of_stock" 
+                                ? "bg-red-100 text-red-800 border-red-300" 
+                                : item.status === "critical"
+                                  ? "bg-yellow-100 text-yellow-800 border-yellow-300"
+                                  : "bg-orange-100 text-orange-800 border-orange-300"
+                            }
+                          >
+                            {item.status === "out_of_stock" ? "Out of Stock" : 
+                             item.status === "critical" ? "Critical" : "Low Stock"}
+                          </Badge>
+                          <p className="text-xs text-muted-foreground mt-1">{item.totalStock} units left</p>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => router.push(`/seller/products/${item.id}`)}>
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {lowStockData.summary.total > 5 && (
+                <div className="mt-4 text-center">
+                  <Button variant="outline" onClick={() => router.push('/seller/inventory')}>
+                    View All {lowStockData.summary.total} Alerts
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Next Steps */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Next Steps</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className={`flex items-center justify-between p-4 bg-gray-50 rounded-lg ${
+                profile.verificationStatus === "VERIFIED" ? "opacity-100" : "opacity-75"
+              }`}>
+                <div>
+                  <h4 className="font-medium">Account Verification</h4>
+                  <p className="text-sm text-gray-600">
+                    {profile.verificationStatus === "VERIFIED" 
+                      ? "Your account has been verified"
+                      : "Your documents are being reviewed"
+                    }
+                  </p>
+                </div>
+                <div className={
+                  profile.verificationStatus === "VERIFIED" 
+                    ? "text-green-600" 
+                    : profile.verificationStatus === "REJECTED"
+                    ? "text-brand-red"
+                    : "text-yellow-600"
+                }>
+                  <span className="text-sm">
+                    {profile.verificationStatus === "VERIFIED" ? "Complete" :
+                     profile.verificationStatus === "REJECTED" ? "Rejected" :
+                     "In Progress"}
+                  </span>
+                </div>
+              </div>
+              
+              <div className={`flex items-center justify-between p-4 bg-gray-50 rounded-lg ${
+                !isVerified ? "opacity-50" : ""
+              }`}>
+                <div>
+                  <h4 className="font-medium">Product Catalog Setup</h4>
+                  <p className="text-sm text-gray-600">Add your first products</p>
+                </div>
+                <div className={isVerified ? "text-brand-navy" : "text-gray-400"}>
+                  <ArrowRight className="w-5 h-5" />
+                </div>
+              </div>
+              
+              <div className={`flex items-center justify-between p-4 bg-gray-50 rounded-lg ${
+                !isVerified ? "opacity-50" : ""
+              }`}>
+                <div>
+                  <h4 className="font-medium">Go Live</h4>
+                  <p className="text-sm text-gray-600">Start receiving orders</p>
+                </div>
+                <div className={isVerified ? "text-brand-navy" : "text-gray-400"}>
+                  <ArrowRight className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  )
+} 

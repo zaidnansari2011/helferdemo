@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    // Target modern JavaScript for ES2020+ features (private fields, etc.)
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    
+    // Module settings for Node.js/Bun compatibility
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    
+    // Enable interop for CommonJS modules (fixes Zod locale imports)
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    
+    // Output settings
+    "noEmit": true,
+    "allowJs": true,
+    
+    // Skip type checking for node_modules (fixes kysely, nanostores errors)
+    "skipLibCheck": true,
+    
+    // Strict type checking
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    
+    // Relaxed settings for development
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    
+    // Resolve paths from backend root
+    "baseUrl": ".",
+    "rootDir": "."
+  },
+  "include": [
+    "server/**/*.ts",
+    "prisma/seed-v2.ts",
+    "prisma/seed-data.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "prisma/seed.ts"
+  ]
+}
