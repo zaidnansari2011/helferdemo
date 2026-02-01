@@ -7,9 +7,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useSession, authClient, getSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 
 
@@ -20,76 +19,26 @@ export default function SellerPage() {
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState<"email" | "otp">("email");
-  const { data: session, isPending: sessionLoading, refetch: refetchSession } = useSession();
   const router = useRouter();
 
-  // Redirect if already logged in
-  useEffect(() => {
-    if (session?.user && !sessionLoading) {
-      setIsLoading(true);
-      router.push("/seller");
-    }
-  }, [session, sessionLoading, router]);
-
+  // DEMO MODE: Skip OTP send, just go to OTP entry
   const handleSendOTP = async () => {
     if (!phoneNumber) return;
-
     setIsLoading(true);
-
-    try {
-      const response = await authClient.phoneNumber.sendOtp({
-        phoneNumber: phoneNumber,
-      });
-
-      if (response.error) {
-        alert(response.error?.message);
-      } else {
-        setStep("otp");
-      }
-    } catch (error) {
-      alert("Failed to send OTP. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
+    // Simulate a brief delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setStep("otp");
+    setIsLoading(false);
   };
 
+  // DEMO MODE: Accept any OTP and go to seller dashboard
   const handleVerifyOTP = async () => {
     if (!otp) return;
-
     setIsLoading(true);
-
-    try {
-      const response = await authClient.phoneNumber.verify({
-        phoneNumber: phoneNumber,
-        code: otp,
-      });
-
-      console.log('OTP Verification Response:', JSON.stringify(response, null, 2));
-
-      // Check if verification was successful (no error means success)
-      if (response.error) {
-        alert(response.error.message || "Invalid OTP. Please try again.");
-        setIsLoading(false);
-        return;
-      }
-
-      // Verification successful - session should be created automatically
-      // Close modal
-      setIsModalOpen(false);
-      
-      // Force refetch the session from the server
-      await refetchSession();
-      
-      // Small delay to ensure session is updated
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Now redirect
-      router.push("/seller");
-    } catch (error) {
-      console.error("OTP verification error:", error);
-      alert("Failed to verify OTP. Please try again.");
-      setIsLoading(false);
-    }
+    // Simulate a brief delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setIsModalOpen(false);
+    router.push("/seller");
   };
 
   const resetFlow = () => {
