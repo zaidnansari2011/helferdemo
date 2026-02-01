@@ -183,40 +183,40 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
     },
   });
 
-  const { data: categories, isLoading: loadingCategories } = useQuery(
-    trpc.inventoryProducts.getCategories.queryOptions()
-  );
+  // DEMO MODE: Mock categories
+  const categories = [
+    { id: "cat1", name: "Tools", fullName: "Tools" },
+    { id: "cat2", name: "Electrical", fullName: "Electrical" },
+    { id: "cat3", name: "Plumbing", fullName: "Plumbing" },
+    { id: "cat4", name: "Safety Equipment", fullName: "Safety Equipment" }
+  ];
+  const loadingCategories = false;
 
-  const uploadFileMutation = useMutation(trpc.seller.uploadFile.mutationOptions({
-    onSuccess: (data) => {
-      const newImages = [...uploadedImages, data.fileUrl];
-      setUploadedImages(newImages);
-      form.setValue("images", newImages);
-      toast.success("Image uploaded!");
+  // DEMO MODE: Mock file upload
+  const uploadFileMutation = {
+    mutate: (data: any) => {
+      setTimeout(() => {
+        const newImages = [...uploadedImages, data.fileData];
+        setUploadedImages(newImages);
+        toast.success("Image uploaded successfully");
+      }, 500);
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to upload image");
-    },
-    onSettled: () => {
-      setUploadingImage(false);
-    },
-  }));
+    isPending: false
+  };
 
-  const createProductMutation = useMutation(trpc.inventoryProducts.create.mutationOptions({
-    onSuccess: () => {
+  // DEMO MODE: Mock product creation
+  const createProductMutation = {
+    mutate: async (data: any) => {
+      await new Promise(resolve => setTimeout(resolve, 1000));
       toast.success("Product created successfully!");
       form.reset();
       setUploadedImages([]);
       setCurrentStep(0);
-      onSuccess?.();
+      if (onSuccess) onSuccess();
+      onOpenChange(false);
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to create product");
-    },
-    onSettled: () => {
-      setIsSubmitting(false);
-    },
-  }));
+    isPending: false
+  };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -844,3 +844,6 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
     </Dialog>
   );
 }
+
+
+

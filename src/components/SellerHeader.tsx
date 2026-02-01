@@ -67,7 +67,7 @@ export function SellerHeader() {
         {/* Logo */}
         <Link href="/seller" className="flex items-center">
           <Image 
-            src="/helferlogo.png" 
+            src="/Helferlogo.png" 
             alt="Helfer Logo" 
             width={300} 
             height={85}

@@ -52,6 +52,10 @@ export default function SellerOnboardingPage() {
   
   // Helper function to preview documents/images
   const previewFile = (dataUrl: string) => {
+    if (!dataUrl) {
+      toast.error("No file to preview")
+      return
+    }
     // Convert data URL to blob for better preview
     const arr = dataUrl.split(',')
     const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/pdf'
@@ -1396,6 +1400,7 @@ export default function SellerOnboardingPage() {
     </div>
   )
 }
+
 
 
 

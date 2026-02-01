@@ -1,5 +1,7 @@
 "use client";
 
+import { CreateProductModal } from "@/components/products/CreateProductModal";
+
 import { useState, useMemo, Suspense } from "react";
 import { Plus, Package, Tag, Eye, Search, Filter, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -377,7 +379,18 @@ function ProductsContent() {
               </Card>
             );
           })}
-        </div>
+    
+
+      {/* Create Product Modal */}
+      <CreateProductModal 
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onSuccess={() => {
+          setCreateModalOpen(false);
+        }}
+        warehouseId="demo-warehouse"
+      />
+    </div>
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -408,7 +421,17 @@ function ProductsContent() {
           </CardContent>
         </Card>
       )}
-    </div>
+
+      {/* Create Product Modal */}
+      <CreateProductModal 
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onSuccess={() => {
+          setCreateModalOpen(false);
+          // In demo mode, this would refetch products
+        }}
+        warehouseId="demo-warehouse"
+      /> </div>
   );
 }
 
@@ -420,3 +443,6 @@ export default function ProductsPage() {
     </Suspense>
   );
 } 
+
+
+
