@@ -180,7 +180,7 @@ export default function InvoicesPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Total Invoices</p>
-                  <p className="text-2xl font-bold">{data?.total || 0}</p>
+                  <p className="text-2xl font-bold">{(data as any)?.total || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -277,7 +277,7 @@ export default function InvoicesPage() {
               Invoices
             </CardTitle>
             <CardDescription>
-              {data?.total || 0} total invoices
+              {(data as any)?.total || 0} total invoices
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -289,7 +289,7 @@ export default function InvoicesPage() {
               <div className="text-center py-12 text-red-500">
                 Error loading invoices
               </div>
-            ) : !data?.invoices?.length ? (
+            ) : !(data as any)?.invoices?.length ? (
               <div className="text-center py-12">
                 <Receipt className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-600">No Invoices</h3>
@@ -318,7 +318,7 @@ export default function InvoicesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.invoices.map((invoice) => {
+                    {(data as any).invoices.map((invoice: any) => {
                       const balance = invoice.total - invoice.paidAmount
                       const isOverdue = invoice.dueDate && new Date(invoice.dueDate) < new Date() && balance > 0
 
