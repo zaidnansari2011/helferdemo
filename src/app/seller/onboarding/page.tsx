@@ -156,9 +156,9 @@ export default function SellerOnboardingPage() {
 
   // DEMO MODE: Mock mutations that just succeed
   const uploadFileMutation = {
-    mutateAsync: async (data: { file: string; fileName: string; folder: string }) => {
+    mutateAsync: async (data: { fileName: string; fileType: string; fileData: string; folder: string }) => {
       await new Promise(resolve => setTimeout(resolve, 500))
-      return { url: `https://demo-storage.example.com/${data.folder}/${data.fileName}` }
+      return { url: data.fileData }
     },
     isPending: false
   }
@@ -268,16 +268,16 @@ export default function SellerOnboardingPage() {
       registrationDate: "2020-01-15",
       status: "Active",
       businessType: "Private Limited Company",
-      address: "123 Industrial Area, Phase 2, Mumbai, Maharashtra - 400001",
+      formattedAddress: "123 Industrial Area, Phase 2, Mumbai, Maharashtra - 400001",
       addresses: [
         {
           id: "addr1",
-          address: "123 Industrial Area, Phase 2, Mumbai, Maharashtra - 400001",
+          formattedAddress: "123 Industrial Area, Phase 2, Mumbai, Maharashtra - 400001",
           type: "Principal Place of Business"
         },
         {
           id: "addr2", 
-          address: "456 Commercial Complex, Andheri East, Mumbai - 400069",
+          formattedAddress: "456 Commercial Complex, Andheri East, Mumbai - 400069",
           type: "Additional Place of Business"
         }
       ],
@@ -1396,5 +1396,7 @@ export default function SellerOnboardingPage() {
     </div>
   )
 }
+
+
 
 
