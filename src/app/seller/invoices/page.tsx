@@ -418,10 +418,10 @@ export default function InvoicesPage() {
                 </Table>
 
                 {/* Pagination */}
-                {data.totalPages > 1 && (
+                {(data as any).totalPages > 1 && (
                   <div className="flex items-center justify-between px-6 py-4 border-t">
                     <p className="text-sm text-gray-500">
-                      Showing {(page - 1) * limit + 1} to {Math.min(page * limit, data.total)} of {data.total}
+                      Showing {(page - 1) * limit + 1} to {Math.min(page * limit, (data as any).total)} of {(data as any).total}
                     </p>
                     <div className="flex gap-2">
                       <Button
@@ -437,7 +437,7 @@ export default function InvoicesPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => setPage(page + 1)}
-                        disabled={page === data.totalPages}
+                        disabled={page === (data as any).totalPages}
                       >
                         Next
                         <ChevronRight className="h-4 w-4 ml-1" />
