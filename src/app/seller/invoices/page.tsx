@@ -145,11 +145,11 @@ export default function InvoicesPage() {
   }
 
   // Calculate summary stats
-  const totalOutstanding = data?.invoices
-    ?.filter((inv) => ["SENT", "VIEWED", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status))
-    ?.reduce((sum, inv) => sum + inv.total - inv.paidAmount, 0) || 0
+  const totalOutstanding = (data as any)?.invoices
+    ?.filter((inv: any) => ["SENT", "VIEWED", "PARTIALLY_PAID", "OVERDUE"].includes(inv.status))
+    ?.reduce((sum: number, inv: any) => sum + inv.total - inv.paidAmount, 0) || 0
 
-  const overdueCount = data?.invoices?.filter((inv) => inv.status === "OVERDUE").length || 0
+  const overdueCount = (data as any)?.invoices?.filter((inv: any) => inv.status === "OVERDUE").length || 0
 
   return (
     <div className="min-h-screen bg-gray-50">
