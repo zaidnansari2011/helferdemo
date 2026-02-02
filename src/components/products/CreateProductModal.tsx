@@ -199,40 +199,50 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
     },
   });
 
-  // DEMO MODE: Mock categories
-  const categories = [
-    { id: "cat1", name: "Tools", fullName: "Tools" },
-    { id: "cat2", name: "Electrical", fullName: "Electrical" },
-    { id: "cat3", name: "Plumbing", fullName: "Plumbing" },
-    { id: "cat4", name: "Safety Equipment", fullName: "Safety Equipment" }
-  ];
-  const loadingCategories = false;
+  // Fetch real categories from database
+  const { data: categoriesData, isLoading: loadingCategories } = useQuery(
+    trpc.products.getCategories.queryOptions()
+  );
+  const categories = categoriesData || [];
 
-  // DEMO MODE: Mock file upload
-  const uploadFileMutation = {
-    mutate: (data: any) => {
-      setTimeout(() => {
-        const newImages = [...uploadedImages, data.fileData];
+  // Real file upload mutation
+  const uploadFileMutation = useMutation(
+    trpc.seller.uploadFile.mutationOptions({
+      onSuccess: (data) => {
+        const newImages = [...uploadedImages, data.url];
         setUploadedImages(newImages);
         toast.success("Image uploaded successfully");
-      }, 500);
-    },
-    isPending: false
-  };
+        setUploadingImage(false);
+      },
+      onError: (error) => {
+        toast.error("Failed to upload image", {
+          description: error.message || "Please try again"
+        });
+        setUploadingImage(false);
+      },
+    })
+  );
 
-  // DEMO MODE: Mock product creation
-  const createProductMutation = {
-    mutate: async (data: any) => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success("Product created successfully!");
-      form.reset();
-      setUploadedImages([]);
-      setCurrentStep(0);
-      if (onSuccess) onSuccess();
-      onOpenChange(false);
-    },
-    isPending: false
-  };
+  // Real product creation mutation
+  const createProductMutation = useMutation(
+    trpc.inventoryProducts.create.mutationOptions({
+      onSuccess: () => {
+        toast.success("Product created successfully!");
+        form.reset();
+        setUploadedImages([]);
+        setCurrentStep(0);
+        setIsSubmitting(false);
+        if (onSuccess) onSuccess();
+        onOpenChange(false);
+      },
+      onError: (error) => {
+        toast.error("Failed to create product", {
+          description: error.message || "Please try again"
+        });
+        setIsSubmitting(false);
+      },
+    })
+  );
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -320,8 +330,27 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
       }
     });
     
+    // Transform dimensions from string to object format expected by backend
+    // Frontend: "10 × 5 × 3" -> Backend: { length: 10, width: 5, height: 3, unit: "cm" }
+    let dimensionsObject = undefined;
+    if (cleanData.dimensions && cleanData.dimensions.trim() !== '') {
+      const dimensionParts = cleanData.dimensions.split('×').map((d: string) => parseFloat(d.trim()));
+      if (dimensionParts.length === 3 && dimensionParts.every((d: number) => !isNaN(d) && d > 0)) {
+        dimensionsObject = {
+          length: dimensionParts[0],
+          width: dimensionParts[1],
+          height: dimensionParts[2],
+          unit: cleanData.dimensionUnit?.toLowerCase() || 'cm',
+        };
+      }
+    }
+    
+    // Remove frontend-only fields and add backend-compatible data
+    const { dimensions, dimensionUnit, ...backendData } = cleanData;
+    
     const submitData = {
-      ...cleanData,
+      ...backendData,
+      dimensions: dimensionsObject,
       images: uploadedImages,
       warehouseId: warehouseId || undefined,
     };
