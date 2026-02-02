@@ -348,7 +348,7 @@ export default function SellerOnboardingPage() {
         ...prev,
         brandDetails: {
           ...prev.brandDetails,
-          [field]: result.url
+          [field]: result.fileUrl
         }
       }))
     } catch (error) {
