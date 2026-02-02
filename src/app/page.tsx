@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
-
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner";
 
 
 export default function SellerPage() {
@@ -18,31 +19,63 @@ export default function SellerPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<"email" | "otp">("email");
+  const [step, setStep] = useState<"phone" | "otp">("phone");
   const router = useRouter();
 
-  // DEMO MODE: Skip OTP send, just go to OTP entry
+  // Real OTP send using Better Auth
   const handleSendOTP = async () => {
     if (!phoneNumber) return;
     setIsLoading(true);
-    // Simulate a brief delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setStep("otp");
-    setIsLoading(false);
+    try {
+      const result = await authClient.phoneNumber.sendOtp({
+        phoneNumber: phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`,
+      });
+      
+      if (result.error) {
+        toast.error(result.error.message || "Failed to send OTP");
+        setIsLoading(false);
+        return;
+      }
+      
+      toast.success("OTP sent successfully!");
+      setStep("otp");
+    } catch (error) {
+      console.error("Send OTP error:", error);
+      toast.error("Failed to send OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // DEMO MODE: Accept any OTP and go to seller onboarding
+  // Real OTP verification using Better Auth
   const handleVerifyOTP = async () => {
     if (!otp) return;
     setIsLoading(true);
-    // Simulate a brief delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setIsModalOpen(false);
-    router.push("/seller/onboarding");
+    try {
+      const result = await authClient.phoneNumber.verifyOtp({
+        phoneNumber: phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`,
+        otp,
+      });
+      
+      if (result.error) {
+        toast.error(result.error.message || "Invalid OTP");
+        setIsLoading(false);
+        return;
+      }
+      
+      toast.success("Login successful!");
+      setIsModalOpen(false);
+      router.push("/seller/onboarding");
+      router.refresh();
+    } catch (error) {
+      console.error("Verify OTP error:", error);
+      toast.error("Failed to verify OTP. Please try again.");
+      setIsLoading(false);
+    }
   };
 
   const resetFlow = () => {
-    setStep("email");
+    setStep("phone");
     setOtp("");
     setPhoneNumber("");
   };
@@ -103,13 +136,13 @@ export default function SellerPage() {
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-bold">seller hub</h2>
                 <DialogTitle className="text-xl">
-                  {step === "email" ? "Log in" : "Verify OTP"}
+                  {step === "phone" ? "Log in" : "Verify OTP"}
                 </DialogTitle>
               </div>
             </DialogHeader>
 
             <div className="space-y-4">
-              {step === "email" ? (
+              {step === "phone" ? (
                 <>
                   <Input
                     type="tel"
@@ -159,7 +192,7 @@ export default function SellerPage() {
                     disabled={isLoading}
                     className="w-full"
                   >
-                    Change Email
+                    Change Phone Number
                   </Button>
                 </>
               )}
