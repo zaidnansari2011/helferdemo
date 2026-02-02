@@ -767,14 +767,6 @@ export default function SellerOnboardingPage() {
                         businessDetails: { ...prev.businessDetails, secondaryMobileNumber: e.target.value }
                       }))}
                     />
-                    <FloatingInput
-                      label="Designation"
-                      value={formData.businessDetails.secondaryDesignation || ''}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        businessDetails: { ...prev.businessDetails, secondaryDesignation: e.target.value }
-                      }))}
-                    />
                   </div>
                 </div>
               </div>

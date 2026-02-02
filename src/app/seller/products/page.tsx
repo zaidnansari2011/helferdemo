@@ -335,18 +335,7 @@ function ProductsContent() {
               </Card>
             );
           })}
-    
-
-      {/* Create Product Modal */}
-      <CreateProductModal 
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-        onSuccess={() => {
-          setCreateModalOpen(false);
-        }}
-        warehouseId="demo-warehouse"
-      />
-    </div>
+        </div>
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -382,10 +371,7 @@ function ProductsContent() {
       <CreateProductModal 
         open={createModalOpen}
         onOpenChange={setCreateModalOpen}
-        onSuccess={() => {
-          setCreateModalOpen(false);
-          // In demo mode, this would refetch products
-        }}
+        onSuccess={handleProductCreated}
         warehouseId="demo-warehouse"
       />
 

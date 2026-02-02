@@ -900,25 +900,43 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
                   )} />
 
                   {form.watch("isHazardous") && (
-                    <FormField control={form.control} name="hazardousType" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Hazard Classification *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            <SelectItem value="FLAMMABLE">🔥 Flammable</SelectItem>
-                            <SelectItem value="CORROSIVE">⚗️ Corrosive</SelectItem>
-                            <SelectItem value="TOXIC">☠️ Toxic</SelectItem>
-                            <SelectItem value="EXPLOSIVE">💥 Explosive</SelectItem>
-                            <SelectItem value="OXIDIZING">🔴 Oxidizing</SelectItem>
-                            <SelectItem value="COMPRESSED_GAS">🫧 Compressed Gas</SelectItem>
-                            <SelectItem value="RADIOACTIVE">☢️ Radioactive</SelectItem>
-                            <SelectItem value="BIOHAZARD">☣️ Biohazard</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                    <>
+                      <FormField control={form.control} name="hazardousType" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Hazard Classification *</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="FLAMMABLE">🔥 Flammable</SelectItem>
+                              <SelectItem value="CORROSIVE">⚗️ Corrosive</SelectItem>
+                              <SelectItem value="TOXIC">☠️ Toxic</SelectItem>
+                              <SelectItem value="EXPLOSIVE">💥 Explosive</SelectItem>
+                              <SelectItem value="OXIDIZING">🔴 Oxidizing</SelectItem>
+                              <SelectItem value="COMPRESSED_GAS">🫧 Compressed Gas</SelectItem>
+                              <SelectItem value="RADIOACTIVE">☢️ Radioactive</SelectItem>
+                              <SelectItem value="BIOHAZARD">☣️ Biohazard</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+
+                      <FormField control={form.control} name="msdsDocument" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>MSDS Document URL</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="https://example.com/msds.pdf" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Material Safety Data Sheet (required for hazardous materials)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </>
                   )}
 
                   <FormField control={form.control} name="requiresBatchTracking" render={({ field }) => (
