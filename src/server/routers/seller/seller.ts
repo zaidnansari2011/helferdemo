@@ -141,6 +141,9 @@ const createSellerSchema = z.object({
     countryCode: z.string(),
     secondaryFirstName: z.string().optional(),
     secondarySurname: z.string().optional(),
+    secondaryEmail: z.string().email().optional(),
+    secondaryMobileNumber: z.string().optional(),
+    secondaryCountryCode: z.string().optional(),
   }),
   sellerDetails: z.object({
     gstNumber: z.string(),
@@ -879,6 +882,9 @@ export const sellerRouter = router({
           // Secondary Contact
           secondaryFirstName: input.businessDetails.secondaryFirstName,
           secondarySurname: input.businessDetails.secondarySurname,
+          secondaryEmail: input.businessDetails.secondaryEmail,
+          secondaryMobileNumber: input.businessDetails.secondaryMobileNumber,
+          secondaryCountryCode: input.businessDetails.secondaryCountryCode,
 
           // Bank Details
           bankAccountNumber: input.bankDetails.bankAccountNumber,

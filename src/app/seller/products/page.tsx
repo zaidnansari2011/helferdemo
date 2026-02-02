@@ -2,6 +2,8 @@
 
 import { CreateProductModal } from "@/components/products/CreateProductModal";
 import { ProductDetailsModal } from "@/components/products/ProductDetailsModal";
+import { trpc } from "@/lib/trpc-provider";
+import { useQuery } from "@tanstack/react-query";
 
 import { useState, useMemo, Suspense } from "react";
 import { Plus, Package, Tag, Eye, Search, Filter, X } from "lucide-react";
@@ -15,12 +17,13 @@ interface ProductListItem {
   id: string;
   productCode: string;
   name: string;
-  description: string;
+  description?: string | null;
   brand?: string | null;
   sku: string;
   basePrice: number;
   images: string;
-  isActive: boolean;
+  isActive?: boolean;
+  status: string;
   category: {
     id: string;
     name: string;
@@ -29,69 +32,6 @@ interface ProductListItem {
     variants: number;
   };
 }
-
-// DEMO MODE: Mock product data
-const mockProducts: ProductListItem[] = [
-  {
-    id: "1",
-    productCode: "PRD-001",
-    name: "Industrial Power Drill",
-    description: "Heavy-duty power drill for industrial applications with variable speed control",
-    brand: "DeWalt",
-    sku: "DRL-IND-001",
-    basePrice: 4500,
-    images: JSON.stringify(["https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=400"]),
-    isActive: true,
-    category: { id: "cat1", name: "Tools" },
-    _count: { variants: 3 }
-  },
-  {
-    id: "2",
-    productCode: "PRD-002",
-    name: "Safety Helmet",
-    description: "Industrial safety helmet with adjustable straps and ventilation",
-    brand: "3M",
-    sku: "SFT-HLM-001",
-    basePrice: 850,
-    images: JSON.stringify(["/safetyhelmet.jpg"]),
-    isActive: true,
-    category: { id: "cat2", name: "Safety Equipment" },
-    _count: { variants: 5 }
-  },
-  {
-    id: "3",
-    productCode: "PRD-003",
-    name: "PVC Pipe 4 inch",
-    description: "High-quality PVC pipe for plumbing applications",
-    brand: "Supreme",
-    sku: "PLB-PVC-004",
-    basePrice: 320,
-    images: JSON.stringify(["/pvcpipe.jpg"]),
-    isActive: true,
-    category: { id: "cat3", name: "Plumbing" },
-    _count: { variants: 2 }
-  },
-  {
-    id: "4",
-    productCode: "PRD-004",
-    name: "LED Bulb 12W",
-    description: "Energy efficient LED bulb with 5 year warranty",
-    brand: "Philips",
-    sku: "ELC-LED-012",
-    basePrice: 180,
-    images: JSON.stringify(["/ledbulb.jpg"]),
-    isActive: false,
-    category: { id: "cat4", name: "Electrical" },
-    _count: { variants: 4 }
-  },
-];
-
-const mockCategories = [
-  { id: "cat1", name: "Tools" },
-  { id: "cat2", name: "Safety Equipment" },
-  { id: "cat3", name: "Plumbing" },
-  { id: "cat4", name: "Electrical" },
-];
 
 function ProductsContent() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -103,9 +43,17 @@ function ProductsContent() {
   const [selectedBrand, setSelectedBrand] = useState<string>("all-brands");
   const [selectedStatus, setSelectedStatus] = useState<string>("all-status");
   
-  // DEMO MODE: Use mock data
-  const products = mockProducts;
-  const categories = mockCategories;
+  // Fetch real products from database
+  const { data: productsData, isLoading: loadingProducts, refetch: refetchProducts } = useQuery(
+    trpc.inventoryProducts.list.queryOptions()
+  );
+  const products = productsData || [];
+
+  // Fetch real categories
+  const { data: categoriesData, isLoading: loadingCategories } = useQuery(
+    trpc.products.getCategories.queryOptions()
+  );
+  const categories = categoriesData || [];
 
   // Extract unique brands from products
   const uniqueBrands = useMemo(() => {
@@ -128,7 +76,7 @@ function ProductsContent() {
         const query = searchQuery.toLowerCase();
         const matchesSearch = 
           product.name.toLowerCase().includes(query) ||
-          product.description.toLowerCase().includes(query) ||
+          (product.description && product.description.toLowerCase().includes(query)) ||
           product.sku.toLowerCase().includes(query) ||
           product.productCode.toLowerCase().includes(query) ||
           (product.brand && product.brand.toLowerCase().includes(query));
@@ -148,10 +96,8 @@ function ProductsContent() {
       
       // Status filter
       if (selectedStatus && selectedStatus !== "all-status") {
-        const isActive = selectedStatus === "active";
-        if (product.isActive !== isActive) {
-          return false;
-        }
+        if (selectedStatus === "active" && product.status !== "ACTIVE") return false;
+        if (selectedStatus === "inactive" && product.status === "ACTIVE") return false;
       }
       
       return true;
@@ -160,6 +106,7 @@ function ProductsContent() {
 
   const handleProductCreated = () => {
     setCreateModalOpen(false);
+    refetchProducts(); // Refresh product list after creation
   };
 
   const handleProductClick = (productId: string) => {
@@ -285,8 +232,15 @@ function ProductsContent() {
         </CardContent>
       </Card>
 
-      {/* Products Grid */}
-      {filteredProducts && filteredProducts.length > 0 ? (
+      {/* Loading State */}
+      {loadingProducts ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading products...</p>
+          </div>
+        </div>
+      ) : filteredProducts && filteredProducts.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredProducts.map((product: ProductListItem, index: number) => {
             const images = JSON.parse(product.images || '[]') as string[];
@@ -308,8 +262,8 @@ function ProductsContent() {
                         <CardDescription>Code: {product.productCode} | SKU: {product.sku}</CardDescription>
                       </div>
                     </div>
-                    <Badge variant={product.isActive ? "default" : "secondary"}>
-                      {product.isActive ? "Active" : "Inactive"}
+                    <Badge variant={product.status === "ACTIVE" ? "default" : "secondary"}>
+                      {product.status}
                     </Badge>
                   </div>
                 </CardHeader>

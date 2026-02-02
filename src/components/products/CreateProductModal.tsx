@@ -93,6 +93,7 @@ const productSchema = z.object({
   }).pipe(z.number().int().min(1).default(1)),
   isHazardous: z.boolean().default(false),
   hazardousType: z.enum(['NONE', 'FLAMMABLE', 'CORROSIVE', 'TOXIC', 'EXPLOSIVE', 'OXIDIZING', 'COMPRESSED_GAS', 'RADIOACTIVE', 'BIOHAZARD']).default('NONE'),
+  msdsDocument: z.string().url().optional().or(z.literal('')),
   countryOfOrigin: z.string().default('India'),
   requiresBatchTracking: z.boolean().default(false),
   shelfLifeDays: z.union([z.string(), z.number()]).transform(val => {
@@ -177,6 +178,7 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
       itemsPerPackage: "" as any,
       isHazardous: false,
       hazardousType: "NONE",
+      msdsDocument: "",
       countryOfOrigin: "India",
       requiresBatchTracking: false,
       shelfLifeDays: "" as any,

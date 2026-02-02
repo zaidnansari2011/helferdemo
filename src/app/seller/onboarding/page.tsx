@@ -136,7 +136,10 @@ export default function SellerOnboardingPage() {
       mobileNumber: "",
       countryCode: "+91",
       secondaryFirstName: "",
-      secondarySurname: ""
+      secondarySurname: "",
+      secondaryEmail: "",
+      secondaryMobileNumber: "",
+      secondaryCountryCode: "+91"
     },
     sellerDetails: {
       gstNumber: "",
