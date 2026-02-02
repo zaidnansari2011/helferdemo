@@ -133,11 +133,14 @@ const createSellerSchema = z.object({
     socialChannel: z.string(),
     socialMediaLink: z.string(),
     userCount: z.string(),
-    contactName: z.string(),
+    firstName: z.string(),
+    surname: z.string(),
     officialEmail: z.string().email(),
     designation: z.string(),
     mobileNumber: z.string(),
     countryCode: z.string(),
+    secondaryFirstName: z.string().optional(),
+    secondarySurname: z.string().optional(),
   }),
   sellerDetails: z.object({
     gstNumber: z.string(),
@@ -829,7 +832,7 @@ export const sellerRouter = router({
             id: ctx.session.userId,
           },
           data: {
-            name: input.businessDetails.contactName,
+            name: `${input.businessDetails.firstName} ${input.businessDetails.surname}`,
             email: input.businessDetails.officialEmail,
           },
         });
@@ -860,9 +863,22 @@ export const sellerRouter = router({
           // Brand Details
           brandName: input.brandDetails.brandName,
           brandDescription: input.brandDetails.manufacturerName,
+          manufacturerName: input.brandDetails.manufacturerName,
+          trademarkNumber: input.brandDetails.trademarkNumber,
           trademarkAuthDocumentUrl: input.brandDetails.trademarkAuthDocumentUrl,
           sellerAuthDocumentUrl: input.brandDetails.sellerAuthDocumentUrl,
           brandLogoUrl: input.brandDetails.brandLogoUrl,
+
+          // Primary Contact
+          firstName: input.businessDetails.firstName,
+          surname: input.businessDetails.surname,
+          officialEmail: input.businessDetails.officialEmail,
+          mobileNumber: input.businessDetails.mobileNumber,
+          countryCode: input.businessDetails.countryCode,
+
+          // Secondary Contact
+          secondaryFirstName: input.businessDetails.secondaryFirstName,
+          secondarySurname: input.businessDetails.secondarySurname,
 
           // Bank Details
           bankAccountNumber: input.bankDetails.bankAccountNumber,
@@ -990,6 +1006,73 @@ export const sellerRouter = router({
         });
       }
     }),
+
+  // Get seller account data for account page
+  getAccountData: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.userId;
+
+    const user = await ensureUserProfile(userId);
+
+    if (user?.profile?.role !== "SELLER") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Access denied. Seller account required.",
+      });
+    }
+
+    const profile = user.profile;
+    const shippingLocation = await prisma.shippingLocation.findFirst({
+      where: {
+        sellerId: profile.id,
+        isDefault: true,
+      },
+    });
+
+    return {
+      businessName: profile.brandName || "N/A",
+      businessType: "Partnership", // Could be stored in profile if needed
+      gstNumber: profile.gstNumber || "N/A",
+      businessEmail: profile.officialEmail || user.email,
+      businessPhone: profile.mobileNumber || user.phoneNumber || "N/A",
+      
+      primaryContact: {
+        firstName: profile.firstName || "N/A",
+        surname: profile.surname || "N/A",
+        designation: profile.designation || "N/A",
+        phoneNumber: profile.mobileNumber || "N/A",
+        email: profile.officialEmail || user.email,
+      },
+      
+      secondaryContact: profile.secondaryFirstName ? {
+        firstName: profile.secondaryFirstName,
+        surname: profile.secondarySurname || "",
+        designation: "Secondary Contact",
+        phoneNumber: profile.secondaryMobileNumber || "N/A",
+        email: profile.secondaryEmail || "N/A",
+      } : null,
+      
+      registeredAddress: shippingLocation ? {
+        line1: shippingLocation.address,
+        line2: "",
+        city: "",
+        state: shippingLocation.state,
+        pincode: shippingLocation.pincode,
+        country: "India",
+      } : null,
+      
+      bankDetails: {
+        accountNumber: profile.bankAccountNumber || "N/A",
+        ifscCode: profile.ifscCode || "N/A",
+        bankName: "N/A", // Extract from IFSC if needed
+        branchName: "N/A",
+        bankType: profile.bankType || "N/A",
+      },
+      
+      verificationStatus: profile.verificationStatus,
+      onboardingDate: profile.approvedAt || user.createdAt,
+      lastUpdated: user.updatedAt,
+    };
+  }),
 
   // Get seller profile settings
   getSettings: protectedProcedure.query(async ({ ctx }) => {

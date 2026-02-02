@@ -149,8 +149,24 @@ model UserProfile {
   brandLogo        String? // Image URL
   brandLogoUrl     String? // Alternative field name used in mutation
   brandWebsite     String?
+  manufacturerName String? // Manufacturer/brand manufacturer name
+  trademarkNumber  String? // Trademark registration number
   trademarkAuthDocumentUrl     String? // Brand authorization document URL @map("brandAuthDocumentUrl")
   sellerAuthDocumentUrl    String? // Seller authorization document URL
+
+  // Primary Contact Person
+  firstName        String? // Primary contact first name
+  surname          String? // Primary contact surname
+  officialEmail    String? // Primary contact email
+  mobileNumber     String? // Primary contact mobile
+  countryCode      String? // Primary contact country code
+
+  // Secondary Contact Person
+  secondaryFirstName  String? // Secondary contact first name
+  secondarySurname    String? // Secondary contact surname
+  secondaryEmail      String? // Secondary contact email
+  secondaryMobileNumber String? // Secondary contact mobile
+  secondaryCountryCode  String? // Secondary contact country code
 
   // Bank Details
   bankAccountNumber      String?

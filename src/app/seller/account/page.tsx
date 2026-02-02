@@ -14,61 +14,36 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Shield
+  Shield,
+  Loader2
 } from "lucide-react";
-
-// DEMO MODE: Mock seller data from onboarding
-const sellerData = {
-  // Business Information
-  businessName: "Demo Tools & Hardware",
-  businessType: "Partnership",
-  panNumber: "ABCDE1234F",
-  gstNumber: "27ABCDE1234F1Z5",
-  businessEmail: "demo@helfer.com",
-  businessPhone: "+91 9876543210",
-  
-  // Contact Information
-  primaryContact: {
-    firstName: "Rajesh",
-    surname: "Kumar",
-    designation: "Owner",
-    phoneNumber: "+91 9876543210",
-    email: "rajesh.kumar@demo.com"
-  },
-  
-  secondaryContact: {
-    firstName: "Priya",
-    surname: "Sharma",
-    designation: "Manager",
-    phoneNumber: "+91 9876543211",
-    email: "priya.sharma@demo.com"
-  },
-  
-  // Registered Address
-  registeredAddress: {
-    line1: "123, Industrial Estate",
-    line2: "Sector 15",
-    city: "Mumbai",
-    state: "Maharashtra",
-    pincode: "400001",
-    country: "India"
-  },
-  
-  // Bank Details
-  bankDetails: {
-    accountNumber: "1234567890",
-    ifscCode: "HDFC0001234",
-    bankName: "HDFC Bank",
-    branchName: "Andheri West"
-  },
-  
-  // Verification Status
-  verificationStatus: "VERIFIED",
-  onboardingDate: "2024-12-15",
-  lastUpdated: "2026-01-15"
-};
+import { useQuery } from "@tanstack/react-query";
+import { trpc } from "@/lib/trpc-provider";
 
 export default function AccountPage() {
+  const { data: sellerData, isLoading, error } = useQuery(
+    trpc.seller.getAccountData.queryOptions()
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  if (error || !sellerData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Shield className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Account Data</h3>
+          <p className="text-sm text-gray-600">{error?.message || "Please try again later."}</p>
+        </div>
+      </div>
+    );
+  }
   const statusConfig: Record<string, { label: string; className: string; icon: any }> = {
     VERIFIED: { label: "Verified", className: "bg-green-100 text-green-800 border-green-200", icon: CheckCircle2 },
     PENDING: { label: "Pending Verification", className: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: Clock },
@@ -185,32 +160,38 @@ export default function AccountPage() {
           <Separator />
 
           {/* Secondary Contact */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              Secondary Contact
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-4 border-l-2 border-green-200">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Name</label>
-                <p className="text-base font-semibold">
-                  {sellerData.secondaryContact.firstName} {sellerData.secondaryContact.surname}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Designation</label>
-                <p className="text-base">{sellerData.secondaryContact.designation}</p>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Phone</label>
-                <p className="text-base">{sellerData.secondaryContact.phoneNumber}</p>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-600">Email</label>
-                <p className="text-base">{sellerData.secondaryContact.email}</p>
+          {sellerData.secondaryContact ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                Secondary Contact
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-4 border-l-2 border-green-200">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Name</label>
+                  <p className="text-base font-semibold">
+                    {sellerData.secondaryContact.firstName} {sellerData.secondaryContact.surname}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Designation</label>
+                  <p className="text-base">{sellerData.secondaryContact.designation}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Phone</label>
+                  <p className="text-base">{sellerData.secondaryContact.phoneNumber}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">Email</label>
+                  <p className="text-base">{sellerData.secondaryContact.email}</p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="text-center py-6 text-gray-500 text-sm">
+              No secondary contact provided
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -224,14 +205,21 @@ export default function AccountPage() {
           <CardDescription>Your business registered address</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <p className="text-base">{sellerData.registeredAddress.line1}</p>
-            <p className="text-base">{sellerData.registeredAddress.line2}</p>
-            <p className="text-base">
-              {sellerData.registeredAddress.city}, {sellerData.registeredAddress.state} - {sellerData.registeredAddress.pincode}
-            </p>
-            <p className="text-base font-medium">{sellerData.registeredAddress.country}</p>
-          </div>
+          {sellerData.registeredAddress ? (
+            <div className="space-y-2">
+              <p className="text-base">{sellerData.registeredAddress.line1}</p>
+              {sellerData.registeredAddress.line2 && (
+                <p className="text-base">{sellerData.registeredAddress.line2}</p>
+              )}
+              <p className="text-base">
+                {sellerData.registeredAddress.city && `${sellerData.registeredAddress.city}, `}
+                {sellerData.registeredAddress.state} - {sellerData.registeredAddress.pincode}
+              </p>
+              <p className="text-base font-medium">{sellerData.registeredAddress.country}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No address information available</p>
+          )}
         </CardContent>
       </Card>
 
@@ -248,7 +236,11 @@ export default function AccountPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-600">Account Number</label>
-              <p className="text-base font-mono">••••••{sellerData.bankDetails.accountNumber.slice(-4)}</p>
+              <p className="text-base font-mono">
+                {sellerData.bankDetails.accountNumber !== "N/A" && sellerData.bankDetails.accountNumber.length > 4
+                  ? `••••••${sellerData.bankDetails.accountNumber.slice(-4)}`
+                  : sellerData.bankDetails.accountNumber}
+              </p>
             </div>
             
             <div className="space-y-2">
@@ -257,13 +249,13 @@ export default function AccountPage() {
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-600">Bank Name</label>
-              <p className="text-base">{sellerData.bankDetails.bankName}</p>
+              <label className="text-sm font-medium text-gray-600">Bank Type</label>
+              <p className="text-base">{sellerData.bankDetails.bankType}</p>
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-600">Branch Name</label>
-              <p className="text-base">{sellerData.bankDetails.branchName}</p>
+              <label className="text-sm font-medium text-gray-600">Bank Name</label>
+              <p className="text-base">{sellerData.bankDetails.bankName}</p>
             </div>
           </div>
         </CardContent>
