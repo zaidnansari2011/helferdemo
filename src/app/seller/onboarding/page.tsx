@@ -20,6 +20,8 @@ import { useRouter } from "next/navigation"
 import { Loader2, X, CheckCircle, Upload, Download, FileText, ImageIcon, Info, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { trpc } from "@/lib/trpc-provider"
+import { useMutation } from "@tanstack/react-query"
 
 const categories = [
   "Tools", "Wood work", "Electrical", "Security Systems", "Plumbing", 
@@ -164,22 +166,30 @@ export default function SellerOnboardingPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // DEMO MODE: Mock mutations that just succeed
-  const uploadFileMutation = {
-    mutateAsync: async (data: { fileName: string; fileType: string; fileData: string; folder: string }) => {
-      await new Promise(resolve => setTimeout(resolve, 500))
-      return { url: data.fileData }
-    },
-    isPending: false
-  }
+  // Real tRPC mutations
+  const uploadFileMutation = useMutation(
+    trpc.seller.uploadFile.mutationOptions({
+      onSuccess: (data) => {
+        console.log('File uploaded successfully:', data.fileName)
+      },
+      onError: (error) => {
+        console.error('File upload failed:', error)
+        toast.error('Failed to upload file')
+      }
+    })
+  )
   
-  const onboardingMutation = {
-    mutateAsync: async (_data: OnboardingFormData) => {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      return { success: true }
-    },
-    isPending: false
-  }
+  const onboardingMutation = useMutation(
+    trpc.seller.createSeller.mutationOptions({
+      onSuccess: () => {
+        toast.success("Application submitted successfully! Redirecting to dashboard...")
+      },
+      onError: (error) => {
+        console.error('Onboarding submission failed:', error)
+        toast.error(error.message || "Submission failed. Please try again.")
+      }
+    })
+  )
 
   // Setup canvas for signature
   useEffect(() => {
@@ -509,36 +519,39 @@ export default function SellerOnboardingPage() {
     const signatureValid = validateSignatureSection()
 
     if (!businessValid || !gstValid || !brandValid || !bankValid || !shippingValid || !signatureValid) {
-      alert("Please complete all required sections")
+      toast.error("Please complete all required sections", {
+        description: "Review each section and fill in all required fields"
+      })
       return
     }
 
     if (!termsAccepted) {
-      alert("Please accept the Terms & Conditions to continue")
+      toast.error("Please accept the Terms & Conditions to continue")
       return
     }
 
-    // Capture signature
-    const canvas = canvasRef.current
-    if (canvas) {
-      const signatureData = canvas.toDataURL()
-      setFormData(prev => ({
-        ...prev,
-        digitalSignature: { signature: signatureData }
-      }))
+    // Capture signature if in draw mode
+    let finalFormData = { ...formData }
+    if (signatureMode === 'draw') {
+      const canvas = canvasRef.current
+      if (canvas) {
+        const signatureData = canvas.toDataURL()
+        finalFormData = {
+          ...finalFormData,
+          digitalSignature: { signature: signatureData }
+        }
+      }
     }
 
     setIsSubmitting(true)
     try {
-      await onboardingMutation.mutateAsync(formData)
+      await onboardingMutation.mutateAsync(finalFormData)
       
-      // DEMO MODE: Always go directly to dashboard
-      toast.success("Application submitted successfully! Redirecting to dashboard...")
+      // Success - redirect to dashboard after brief delay
       await new Promise(resolve => setTimeout(resolve, 1500))
       router.push("/seller")
     } catch (error) {
       console.error("Onboarding submission failed:", error)
-      alert("Submission failed. Please try again.")
       setIsSubmitting(false)
     }
   }
