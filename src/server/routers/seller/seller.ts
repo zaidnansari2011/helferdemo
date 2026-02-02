@@ -141,7 +141,7 @@ const createSellerSchema = z.object({
     countryCode: z.string(),
     secondaryFirstName: z.string().optional(),
     secondarySurname: z.string().optional(),
-    secondaryEmail: z.string().email().optional(),
+    secondaryEmail: z.union([z.string().email(), z.literal('')]).optional(),
     secondaryMobileNumber: z.string().optional(),
     secondaryCountryCode: z.string().optional(),
   }),

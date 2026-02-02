@@ -10,22 +10,45 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
+import { toast } from "sonner";
 
 
 export default function SellerPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep] = useState<"phone" | "otp">("phone");
   const router = useRouter();
 
-  // DEMO MODE: Instant access without OTP
-  const handleStartSelling = async () => {
+  // DEMO MODE: Skip to OTP entry (no actual SMS sent)
+  const handleSendOTP = async () => {
     if (!phoneNumber) return;
     setIsLoading(true);
-    // Just redirect - backend will handle demo user in DEMO_MODE
     await new Promise(resolve => setTimeout(resolve, 500));
+    toast.success("Demo Mode: Use OTP 123456");
+    setStep("otp");
+    setIsLoading(false);
+  };
+
+  // DEMO MODE: Accept OTP 123456
+  const handleVerifyOTP = async () => {
+    if (!otp) return;
+    if (otp !== "123456") {
+      toast.error("Invalid OTP. Use 123456 for demo mode.");
+      return;
+    }
+    setIsLoading(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    toast.success("Login successful!");
     setIsModalOpen(false);
     router.push("/seller/onboarding");
+  };
+
+  const resetFlow = () => {
+    setStep("phone");
+    setOtp("");
+    setPhoneNumber("");
   };
 
 
@@ -85,27 +108,71 @@ export default function SellerPage() {
             <DialogHeader>
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-bold">seller hub</h2>
-                <DialogTitle className="text-xl">Get Started</DialogTitle>
-                <p className="text-sm text-gray-600">Demo Mode - No OTP Required</p>
+                <DialogTitle className="text-xl">
+                  {step === "phone" ? "Log in" : "Verify OTP"}
+                </DialogTitle>
+                {step === "phone" && (
+                  <p className="text-sm text-gray-600">Demo Mode - OTP: 123456</p>
+                )}
               </div>
             </DialogHeader>
 
             <div className="space-y-4">
-              <Input
-                type="tel"
-                placeholder="Enter phone number *"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                disabled={isLoading}
-              />
+              {step === "phone" ? (
+                <>
+                  <Input
+                    type="tel"
+                    placeholder="Enter phone number *"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    disabled={isLoading}
+                  />
 
-              <Button
-                onClick={handleStartSelling}
-                disabled={!phoneNumber || isLoading}
-                className="w-full"
-              >
-                {isLoading ? "Loading..." : "Start Selling"}
-              </Button>
+                  <Button
+                    onClick={handleSendOTP}
+                    disabled={!phoneNumber || isLoading}
+                    className="w-full"
+                  >
+                    {isLoading ? "Sending..." : "Send OTP"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="text-center space-y-2">
+                    <p className="text-sm text-gray-600">
+                      Enter the 6-digit OTP
+                    </p>
+                    <p className="text-sm font-medium text-green-600">Demo OTP: 123456</p>
+                    <p className="text-xs text-gray-500">{phoneNumber}</p>
+                  </div>
+
+                  <Input
+                    type="text"
+                    placeholder="Enter OTP (123456)"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    disabled={isLoading}
+                    maxLength={6}
+                  />
+
+                  <Button
+                    onClick={handleVerifyOTP}
+                    disabled={!otp || isLoading}
+                    className="w-full"
+                  >
+                    {isLoading ? "Verifying..." : "Verify OTP"}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={resetFlow}
+                    disabled={isLoading}
+                    className="w-full"
+                  >
+                    Change Phone Number
+                  </Button>
+                </>
+              )}
 
               <p className="text-xs text-center text-gray-600">
                 By continuing, I agree to the{" "}
