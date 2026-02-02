@@ -773,10 +773,46 @@ export const sellerRouter = router({
   }),
 
   // Create seller account with onboarding data
-  createSeller: protectedProcedure
+  createSeller: publicProcedure
     .input(createSellerSchema)
     .mutation(async ({ input, ctx }) => {
-      sellerLogger.info('Creating seller account for user:', ctx.session.userId);
+      const isDemoMode = process.env.DEMO_MODE === 'true';
+      
+      // In demo mode, auto-create a demo user if no session exists
+      let userId = ctx.session?.userId;
+      if (isDemoMode && !userId) {
+        sellerLogger.info('DEMO MODE: Creating demo user for onboarding');
+        
+        // Create or find demo user
+        let demoUser = await prisma.user.findFirst({
+          where: { phoneNumber: '+919999999999' }
+        });
+        
+        if (!demoUser) {
+          demoUser = await prisma.user.create({
+            data: {
+              id: 'demo-user-' + Date.now(),
+              name: 'Demo Seller',
+              email: 'demo@seller.com',
+              emailVerified: true,
+              phoneNumber: '+919999999999',
+              phoneNumberVerified: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }
+          });
+        }
+        userId = demoUser.id;
+      }
+      
+      if (!userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Authentication required. Please log in first.",
+        });
+      }
+      
+      sellerLogger.info('Creating seller account for user:', userId);
       sellerLogger.debug('Input data:', JSON.stringify(input, null, 2));
 
       try {
@@ -794,7 +830,7 @@ export const sellerRouter = router({
         sellerLogger.debug('Finding user...');
         const user = await prisma.user.findUnique({
           where: {
-            id: ctx.session.userId,
+            id: userId,
           },
           include: {
             profile: true,

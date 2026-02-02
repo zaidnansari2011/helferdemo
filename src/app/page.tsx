@@ -10,75 +10,25 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
-import { authClient } from "@/lib/auth-client";
-import { toast } from "sonner";
 
 
 export default function SellerPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<"phone" | "otp">("phone");
   const router = useRouter();
 
-  // Real OTP send using Better Auth
-  const handleSendOTP = async () => {
+  // DEMO MODE: Instant access without OTP
+  const handleStartSelling = async () => {
     if (!phoneNumber) return;
     setIsLoading(true);
-    try {
-      const result = await authClient.phoneNumber.sendOtp({
-        phoneNumber: phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`,
-      });
-      
-      if (result.error) {
-        toast.error(result.error.message || "Failed to send OTP");
-        setIsLoading(false);
-        return;
-      }
-      
-      toast.success("OTP sent successfully!");
-      setStep("otp");
-    } catch (error) {
-      console.error("Send OTP error:", error);
-      toast.error("Failed to send OTP. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
+    // Just redirect - backend will handle demo user in DEMO_MODE
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setIsModalOpen(false);
+    router.push("/seller/onboarding");
   };
 
-  // Real OTP verification using Better Auth
-  const handleVerifyOTP = async () => {
-    if (!otp) return;
-    setIsLoading(true);
-    try {
-      const result = await authClient.phoneNumber.verifyOtp({
-        phoneNumber: phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`,
-        otp,
-      });
-      
-      if (result.error) {
-        toast.error(result.error.message || "Invalid OTP");
-        setIsLoading(false);
-        return;
-      }
-      
-      toast.success("Login successful!");
-      setIsModalOpen(false);
-      router.push("/seller/onboarding");
-      router.refresh();
-    } catch (error) {
-      console.error("Verify OTP error:", error);
-      toast.error("Failed to verify OTP. Please try again.");
-      setIsLoading(false);
-    }
-  };
 
-  const resetFlow = () => {
-    setStep("phone");
-    setOtp("");
-    setPhoneNumber("");
-  };
 
   return (
     <>
@@ -135,67 +85,27 @@ export default function SellerPage() {
             <DialogHeader>
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-bold">seller hub</h2>
-                <DialogTitle className="text-xl">
-                  {step === "phone" ? "Log in" : "Verify OTP"}
-                </DialogTitle>
+                <DialogTitle className="text-xl">Get Started</DialogTitle>
+                <p className="text-sm text-gray-600">Demo Mode - No OTP Required</p>
               </div>
             </DialogHeader>
 
             <div className="space-y-4">
-              {step === "phone" ? (
-                <>
-                  <Input
-                    type="tel"
-                    placeholder="Enter phone number *"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    disabled={isLoading}
-                  />
+              <Input
+                type="tel"
+                placeholder="Enter phone number *"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                disabled={isLoading}
+              />
 
-                  <Button
-                    onClick={handleSendOTP}
-                    disabled={!phoneNumber || isLoading}
-                    className="w-full"
-                  >
-                    {isLoading ? "Sending..." : "Send OTP"}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="text-center space-y-2">
-                    <p className="text-sm text-gray-600">
-                      Enter the 6-digit OTP sent to
-                    </p>
-                    <p className="text-sm font-medium">{phoneNumber}</p>
-                  </div>
-
-                  <Input
-                    type="text"
-                    placeholder="Enter 6-digit OTP"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    disabled={isLoading}
-                    maxLength={6}
-                  />
-
-                  <Button
-                    onClick={handleVerifyOTP}
-                    disabled={!otp || isLoading}
-                    className="w-full"
-                  >
-                    {isLoading ? "Verifying..." : "Verify OTP"}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={resetFlow}
-                    disabled={isLoading}
-                    className="w-full"
-                  >
-                    Change Phone Number
-                  </Button>
-                </>
-              )}
+              <Button
+                onClick={handleStartSelling}
+                disabled={!phoneNumber || isLoading}
+                className="w-full"
+              >
+                {isLoading ? "Loading..." : "Start Selling"}
+              </Button>
 
               <p className="text-xs text-center text-gray-600">
                 By continuing, I agree to the{" "}
