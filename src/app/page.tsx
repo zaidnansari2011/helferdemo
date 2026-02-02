@@ -87,7 +87,7 @@ export default function SellerPage() {
             <div className="relative flex justify-center lg:justify-end">
               <div className="relative w-full max-w-xl">
                 <Image
-                  src="/hero.svg"
+                  src="/hero1.svg"
                   alt="Delivery person on scooter"
                   className="object-contain"
                   width={500}

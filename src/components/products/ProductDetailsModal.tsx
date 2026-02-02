@@ -28,10 +28,211 @@ import {
   Copy,
   Eye
 } from "lucide-react";
-import { trpc } from "@/lib/trpc-provider";
 import { toast } from "sonner";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { VariantCreateModal } from "./VariantCreateModal";
+
+// DEMO MODE: Mock product with variants
+const getMockProduct = (productId: string) => {
+  const mockProducts = {
+    "1": {
+      id: "1",
+      productCode: "PRD-001",
+      name: "Industrial Power Drill",
+      description: "Heavy-duty power drill for industrial applications with variable speed control. Features include: Variable speed trigger, Forward/reverse switch, 360° side handle, Depth gauge, Heavy-duty keyed chuck",
+      brand: "DeWalt",
+      sku: "DRL-IND-001",
+      basePrice: 4500,
+      images: JSON.stringify(["https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=400"]),
+      isActive: true,
+      category: { id: "cat1", name: "Tools" },
+      variants: [
+        {
+          id: "v1-1",
+          name: "13mm Standard",
+          sku: "DRL-IND-001-13MM",
+          price: 4500,
+          barcode: "8901234567890",
+          isActive: true,
+          attributes: JSON.stringify({ "Chuck Size": "13mm", "Power": "550W" }),
+          productLocations: [{ quantity: 25, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v1-2",
+          name: "10mm Compact",
+          sku: "DRL-IND-001-10MM",
+          price: 3800,
+          barcode: "8901234567891",
+          isActive: true,
+          attributes: JSON.stringify({ "Chuck Size": "10mm", "Power": "450W" }),
+          productLocations: [{ quantity: 30, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v1-3",
+          name: "16mm Heavy Duty",
+          sku: "DRL-IND-001-16MM",
+          price: 5200,
+          barcode: "8901234567892",
+          isActive: true,
+          attributes: JSON.stringify({ "Chuck Size": "16mm", "Power": "650W" }),
+          productLocations: [{ quantity: 15, warehouse: { name: "Main Warehouse" } }]
+        }
+      ]
+    },
+    "2": {
+      id: "2",
+      productCode: "PRD-002",
+      name: "Safety Helmet",
+      description: "Industrial safety helmet with adjustable straps and ventilation. Meets all safety standards including IS 2925:1984 certification. Features UV protection and impact resistance.",
+      brand: "3M",
+      sku: "SFT-HLM-001",
+      basePrice: 850,
+      images: JSON.stringify(["/safetyhelmet.jpg"]),
+      isActive: true,
+      category: { id: "cat2", name: "Safety Equipment" },
+      variants: [
+        {
+          id: "v2-1",
+          name: "Standard White",
+          sku: "SFT-HLM-001-WHT",
+          price: 850,
+          barcode: "8901234567893",
+          isActive: true,
+          attributes: JSON.stringify({ "Color": "White", "Size": "Universal" }),
+          productLocations: [{ quantity: 50, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v2-2",
+          name: "Standard Yellow",
+          sku: "SFT-HLM-001-YLW",
+          price: 850,
+          barcode: "8901234567894",
+          isActive: true,
+          attributes: JSON.stringify({ "Color": "Yellow", "Size": "Universal" }),
+          productLocations: [{ quantity: 45, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v2-3",
+          name: "Standard Red",
+          sku: "SFT-HLM-001-RED",
+          price: 850,
+          barcode: "8901234567895",
+          isActive: true,
+          attributes: JSON.stringify({ "Color": "Red", "Size": "Universal" }),
+          productLocations: [{ quantity: 40, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v2-4",
+          name: "Standard Blue",
+          sku: "SFT-HLM-001-BLU",
+          price: 850,
+          barcode: "8901234567896",
+          isActive: true,
+          attributes: JSON.stringify({ "Color": "Blue", "Size": "Universal" }),
+          productLocations: [{ quantity: 35, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v2-5",
+          name: "Standard Orange",
+          sku: "SFT-HLM-001-ORG",
+          price: 850,
+          barcode: "8901234567897",
+          isActive: true,
+          attributes: JSON.stringify({ "Color": "Orange", "Size": "Universal" }),
+          productLocations: [{ quantity: 38, warehouse: { name: "Main Warehouse" } }]
+        }
+      ]
+    },
+    "3": {
+      id: "3",
+      productCode: "PRD-003",
+      name: "PVC Pipe 4 inch",
+      description: "High-quality PVC pipe for plumbing applications. Corrosion resistant, lightweight, and easy to install. Suitable for water supply and drainage systems.",
+      brand: "Supreme",
+      sku: "PLB-PVC-004",
+      basePrice: 320,
+      images: JSON.stringify(["/pvcpipe.jpg"]),
+      isActive: true,
+      category: { id: "cat3", name: "Plumbing" },
+      variants: [
+        {
+          id: "v3-1",
+          name: "3 meter length",
+          sku: "PLB-PVC-004-3M",
+          price: 320,
+          barcode: "8901234567898",
+          isActive: true,
+          attributes: JSON.stringify({ "Length": "3m", "Diameter": "4 inch" }),
+          productLocations: [{ quantity: 100, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v3-2",
+          name: "6 meter length",
+          sku: "PLB-PVC-004-6M",
+          price: 600,
+          barcode: "8901234567899",
+          isActive: true,
+          attributes: JSON.stringify({ "Length": "6m", "Diameter": "4 inch" }),
+          productLocations: [{ quantity: 75, warehouse: { name: "Main Warehouse" } }]
+        }
+      ]
+    },
+    "4": {
+      id: "4",
+      productCode: "PRD-004",
+      name: "LED Bulb 12W",
+      description: "Energy efficient LED bulb with 5 year warranty. Cool white light, instant on, no warm-up time. Save up to 85% on electricity bills.",
+      brand: "Philips",
+      sku: "ELC-LED-012",
+      basePrice: 180,
+      images: JSON.stringify(["/ledbulb.jpg"]),
+      isActive: false,
+      category: { id: "cat4", name: "Electrical" },
+      variants: [
+        {
+          id: "v4-1",
+          name: "Cool White B22",
+          sku: "ELC-LED-012-CW-B22",
+          price: 180,
+          barcode: "8901234567900",
+          isActive: true,
+          attributes: JSON.stringify({ "Color Temperature": "Cool White", "Base": "B22" }),
+          productLocations: [{ quantity: 200, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v4-2",
+          name: "Warm White B22",
+          sku: "ELC-LED-012-WW-B22",
+          price: 180,
+          barcode: "8901234567901",
+          isActive: true,
+          attributes: JSON.stringify({ "Color Temperature": "Warm White", "Base": "B22" }),
+          productLocations: [{ quantity: 180, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v4-3",
+          name: "Cool White E27",
+          sku: "ELC-LED-012-CW-E27",
+          price: 190,
+          barcode: "8901234567902",
+          isActive: true,
+          attributes: JSON.stringify({ "Color Temperature": "Cool White", "Base": "E27" }),
+          productLocations: [{ quantity: 150, warehouse: { name: "Main Warehouse" } }]
+        },
+        {
+          id: "v4-4",
+          name: "Warm White E27",
+          sku: "ELC-LED-012-WW-E27",
+          price: 190,
+          barcode: "8901234567903",
+          isActive: true,
+          attributes: JSON.stringify({ "Color Temperature": "Warm White", "Base": "E27" }),
+          productLocations: [{ quantity: 160, warehouse: { name: "Main Warehouse" } }]
+        }
+      ]
+    }
+  };
+  
+  return mockProducts[productId as keyof typeof mockProducts] || null;
+};
 
 interface ProductDetailsModalProps {
   productId: string | null;
@@ -46,98 +247,29 @@ export function ProductDetailsModal({
   onOpenChange, 
   onSuccess 
 }: ProductDetailsModalProps) {
-  const [editModalOpen, setEditModalOpen] = useState(false);
   const [createVariantModalOpen, setCreateVariantModalOpen] = useState(false);
-  const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
 
-  const { data: product, isLoading, refetch } = useQuery({
-    ...trpc.inventoryProducts.getById.queryOptions({ id: productId! }),
-    enabled: !!productId,
-  });
-
-  const deleteProductMutation = useMutation(trpc.inventoryProducts.delete.mutationOptions({
-    onSuccess: () => {
-      toast.success("Product deleted successfully!");
-      onOpenChange(false);
-      onSuccess?.();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to delete product");
-    },
-  }));
-
-  const deleteVariantMutation = useMutation(trpc.inventoryProducts.variants.delete.mutationOptions({
-    onSuccess: () => {
-      toast.success("Variant deleted successfully!");
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to delete variant");
-    },
-  }));
-
-  const removeLocationMutation = useMutation(trpc.inventoryProducts.locations.remove.mutationOptions({
-    onSuccess: () => {
-      toast.success("Location removed successfully!");
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to remove location");
-    },
-  }));
-
-  const updateLocationMutation = useMutation(trpc.inventoryProducts.locations.update.mutationOptions({
-    onSuccess: () => {
-      toast.success("Location updated successfully!");
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to update location");
-    },
-  }));
-
-  const handleDeleteProduct = () => {
-    if (productId && confirm("Are you sure you want to delete this product? This action cannot be undone.")) {
-      deleteProductMutation.mutate({ id: productId });
-    }
-  };
-
-  const handleDeleteVariant = (variantId: string) => {
-    if (confirm("Are you sure you want to delete this variant? This action cannot be undone.")) {
-      deleteVariantMutation.mutate({ id: variantId });
-    }
-  };
+  // DEMO MODE: Use mock data instead of API
+  const product = productId ? getMockProduct(productId) : null;
+  const isLoading = false;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard!");
   };
 
-  const handleAssignLocation = (variantId: string, variantName: string) => {
-    setSelectedVariantForLocation({ id: variantId, name: variantName });
-    setAssigningToProduct(false);
-    setLocationAssignmentModalOpen(true);
-  };
-
-  const handleAssignProductLocation = () => {
-    setSelectedVariantForLocation(null);
-    setAssigningToProduct(true);
-    setLocationAssignmentModalOpen(true);
-  };
-
-  const handleRemoveLocation = (locationId: string) => {
-    if (confirm("Are you sure you want to remove this location assignment?")) {
-      removeLocationMutation.mutate({ id: locationId });
+  const handleDeleteProduct = () => {
+    if (productId && confirm("Are you sure you want to delete this product? This action cannot be undone.")) {
+      toast.success("Product deleted successfully! (Demo mode - no actual deletion)");
+      onOpenChange(false);
+      onSuccess?.();
     }
   };
 
-  const handleUpdateQuantity = (locationId: string, currentQuantity: number) => {
-    const newQuantity = prompt(`Enter new quantity (current: ${currentQuantity}):`);
-    if (newQuantity && !isNaN(parseInt(newQuantity)) && parseInt(newQuantity) > 0) {
-      updateLocationMutation.mutate({ 
-        id: locationId, 
-        quantity: parseInt(newQuantity) 
-      });
+  const handleDeleteVariant = (variantId: string) => {
+    if (confirm("Are you sure you want to delete this variant? This action cannot be undone.")) {
+      toast.success("Variant deleted successfully! (Demo mode - no actual deletion)");
     }
   };
 
@@ -174,7 +306,7 @@ export function ProductDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[80vw] !w-[80vw] !max-h-[90vh] overflow-hidden">
+      <DialogContent className="!max-w-[80vw] !w-[80vw] !max-h-[90vh] overflow-hidden animate-in fade-in-0 zoom-in-95 duration-300 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -191,7 +323,6 @@ export function ProductDetailsModal({
                 variant="outline"
                 size="sm"
                 onClick={handleDeleteProduct}
-                disabled={deleteProductMutation.isPending}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
@@ -200,16 +331,16 @@ export function ProductDetailsModal({
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="overview" className="flex-1 overflow-hidden">
+        <Tabs defaultValue="overview" className="flex-1 overflow-hidden" onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="variants">
+            <TabsTrigger value="overview" className="transition-all duration-200">Overview</TabsTrigger>
+            <TabsTrigger value="variants" className="transition-all duration-200">
               Variants ({product.variants?.length || 0})
             </TabsTrigger>
           </TabsList>
 
           <div className="mt-4 overflow-y-auto max-h-[calc(90vh-200px)]">
-            <TabsContent value="overview" className="space-y-8">
+            <TabsContent value="overview" className="space-y-8 transition-all duration-300">
               {/* Main Content Layout */}
               <div className="flex gap-8">
                 {/* Product Image */}
@@ -219,7 +350,14 @@ export function ProductDetailsModal({
                       <img 
                         src={images[0]} 
                         alt={product.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            parent.innerHTML = '<div class="w-full h-full flex items-center justify-center"><svg class="h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg></div>';
+                          }
+                        }}
                       />
                     </div>
                   ) : (
@@ -240,6 +378,21 @@ export function ProductDetailsModal({
 
                     {/* Key Details Grid */}
                     <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                      <div>
+                        <dt className="text-sm font-medium text-gray-500">Product Code</dt>
+                        <dd className="mt-1 flex items-center gap-2">
+                          <span className="font-mono text-sm">{product.productCode}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(product.productCode)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </dd>
+                      </div>
+
                       <div>
                         <dt className="text-sm font-medium text-gray-500">SKU</dt>
                         <dd className="mt-1 flex items-center gap-2">
@@ -296,7 +449,7 @@ export function ProductDetailsModal({
               </div>
             </TabsContent>
 
-            <TabsContent value="variants" className="space-y-6">
+            <TabsContent value="variants" className="space-y-6 transition-all duration-300">
               {/* Header Section */}
               <div className="flex items-center justify-between pb-4 border-b">
                 <div>
@@ -306,7 +459,9 @@ export function ProductDetailsModal({
                   </p>
                 </div>
                 <Button 
-                  onClick={() => setCreateVariantModalOpen(true)}
+                  onClick={() => {
+                    toast.info("Add variant feature coming soon! (Demo mode)");
+                  }}
                   className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -464,7 +619,9 @@ export function ProductDetailsModal({
                       Create variants to manage different sizes, colors, specifications, or any other product variations.
                     </p>
                     <Button 
-                      onClick={() => setCreateVariantModalOpen(true)}
+                      onClick={() => {
+                        toast.info("Add variant feature coming soon! (Demo mode)");
+                      }}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
                       <Plus className="mr-2 h-4 w-4" />
@@ -476,26 +633,6 @@ export function ProductDetailsModal({
             </TabsContent>
           </div>
         </Tabs>
-
-        {/* Modals */}
-        {/* <EditProductModal 
-          productId={productId}
-          open={editModalOpen} 
-          onOpenChange={setEditModalOpen}
-          onSuccess={() => {
-            refetch();
-            setEditModalOpen(false);
-          }}
-        /> */}
-        <VariantCreateModal 
-          productId={productId}
-          open={createVariantModalOpen}
-          onOpenChange={setCreateVariantModalOpen}
-          onSuccess={() => {
-            refetch();
-            setCreateVariantModalOpen(false);
-          }}
-        />
       </DialogContent>
     </Dialog>
   );

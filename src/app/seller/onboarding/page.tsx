@@ -38,6 +38,9 @@ export default function SellerOnboardingPage() {
   const [gstError, setGstError] = useState("")
   const [isDrawing, setIsDrawing] = useState(false)
   const [hasSignature, setHasSignature] = useState(false)
+  const [signatureMode, setSignatureMode] = useState<'draw' | 'upload'>('draw')
+  const [uploadedSignatureFile, setUploadedSignatureFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   const [authDocUploading, setAuthDocUploading] = useState(false)
@@ -124,11 +127,14 @@ export default function SellerOnboardingPage() {
       socialChannel: "",
       socialMediaLink: "",
       userCount: "",
-      contactName: "",
+      firstName: "",
+      surname: "",
       officialEmail: "",
       designation: "",
       mobileNumber: "",
-      countryCode: "+91"
+      countryCode: "+91",
+      secondaryFirstName: "",
+      secondarySurname: ""
     },
     sellerDetails: {
       gstNumber: "",
@@ -194,7 +200,8 @@ export default function SellerOnboardingPage() {
     // Validate business section
     const businessValid = topCategories.length > 0 && 
       formData.businessDetails.retailChannel &&
-      formData.businessDetails.contactName &&
+      formData.businessDetails.firstName &&
+      formData.businessDetails.surname &&
       formData.businessDetails.officialEmail &&
       formData.businessDetails.mobileNumber
     setValidatedSections(prev => ({ ...prev, business: businessValid }))
@@ -379,12 +386,54 @@ export default function SellerOnboardingPage() {
     setHasSignature(false)
   }
 
+  const handleSignatureFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png']
+      if (!validTypes.includes(file.type)) {
+        toast.error('Please upload a valid document (PDF, DOC, DOCX, JPG, or PNG)')
+        return
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('File size must be less than 5MB')
+        return
+      }
+      
+      setUploadedSignatureFile(file)
+      setHasSignature(true)
+      
+      // Convert to base64 and save to formData
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setFormData(prev => ({
+          ...prev,
+          digitalSignature: { signature: reader.result as string }
+        }))
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeSignatureFile = () => {
+    setUploadedSignatureFile(null)
+    setHasSignature(false)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    setFormData(prev => ({
+      ...prev,
+      digitalSignature: { signature: '' }
+    }))
+  }
+
   // Section validation
   const validateBusinessSection = () => {
     const errors: Record<string, string> = {}
     if (topCategories.length === 0) errors.topCategories = "Select at least one category"
     if (!formData.businessDetails.retailChannel) errors.retailChannel = "Required"
-    if (!formData.businessDetails.contactName) errors.contactName = "Required"
+    if (!formData.businessDetails.firstName) errors.firstName = "Required"
+    if (!formData.businessDetails.surname) errors.surname = "Required"
     if (!formData.businessDetails.officialEmail) errors.officialEmail = "Required"
     if (!formData.businessDetails.mobileNumber) errors.mobileNumber = "Required"
     
@@ -614,14 +663,25 @@ export default function SellerOnboardingPage() {
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Primary Contact</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <FloatingInput
-                      label="Contact Name *"
-                      value={formData.businessDetails.contactName}
+                      label="First Name *"
+                      value={formData.businessDetails.firstName}
                       onChange={(e) => setFormData(prev => ({
                         ...prev,
-                        businessDetails: { ...prev.businessDetails, contactName: e.target.value }
+                        businessDetails: { ...prev.businessDetails, firstName: e.target.value }
                       }))}
-                      error={errors.contactName}
+                      error={errors.firstName}
                     />
+                    <FloatingInput
+                      label="Surname *"
+                      value={formData.businessDetails.surname}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        businessDetails: { ...prev.businessDetails, surname: e.target.value }
+                      }))}
+                      error={errors.surname}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
                     <FloatingInput
                       label="Official Email *"
                       value={formData.businessDetails.officialEmail}
@@ -631,8 +691,6 @@ export default function SellerOnboardingPage() {
                       }))}
                       error={errors.officialEmail}
                     />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
                     <FloatingInput
                       label="Mobile Number *"
                       value={formData.businessDetails.mobileNumber}
@@ -642,6 +700,8 @@ export default function SellerOnboardingPage() {
                       }))}
                       error={errors.mobileNumber}
                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
                     <FloatingInput
                       label="Designation"
                       value={formData.businessDetails.designation || ''}
@@ -658,13 +718,23 @@ export default function SellerOnboardingPage() {
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Secondary Contact (Optional)</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <FloatingInput
-                      label="Contact Name"
-                      value={formData.businessDetails.secondaryContactName || ''}
+                      label="First Name"
+                      value={formData.businessDetails.secondaryFirstName || ''}
                       onChange={(e) => setFormData(prev => ({
                         ...prev,
-                        businessDetails: { ...prev.businessDetails, secondaryContactName: e.target.value }
+                        businessDetails: { ...prev.businessDetails, secondaryFirstName: e.target.value }
                       }))}
                     />
+                    <FloatingInput
+                      label="Surname"
+                      value={formData.businessDetails.secondarySurname || ''}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        businessDetails: { ...prev.businessDetails, secondarySurname: e.target.value }
+                      }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
                     <FloatingInput
                       label="Email"
                       value={formData.businessDetails.secondaryEmail || ''}
@@ -673,8 +743,6 @@ export default function SellerOnboardingPage() {
                         businessDetails: { ...prev.businessDetails, secondaryEmail: e.target.value }
                       }))}
                     />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
                     <FloatingInput
                       label="Mobile Number"
                       value={formData.businessDetails.secondaryMobileNumber || ''}
@@ -1217,28 +1285,127 @@ export default function SellerOnboardingPage() {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-xl font-semibold">5. Digital Signature</h2>
-                  <p className="text-sm text-gray-600">Sign to complete the onboarding</p>
+                  <p className="text-sm text-gray-600">Choose to draw your signature or upload a document</p>
                 </div>
                 {validatedSections.signature && <CheckCircle className="h-6 w-6 text-blue-500" />}
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <Label>Draw your signature below *</Label>
-                  <canvas
-                    ref={canvasRef}
-                    className="mt-2 w-full h-64 border-2 border-gray-300 rounded-lg cursor-crosshair bg-white"
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
-                  />
-                  {errors.signature && <p className="text-sm text-red-500 mt-1">{errors.signature}</p>}
-                </div>
+              {/* Mode Selection Tabs */}
+              <div className="flex gap-4 border-b mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignatureMode('draw')
+                    setUploadedSignatureFile(null)
+                    setHasSignature(false)
+                  }}
+                  className={`pb-3 px-4 font-medium transition-colors ${
+                    signatureMode === 'draw'
+                      ? 'border-b-2 border-blue-600 text-blue-600'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Draw Signature
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignatureMode('upload')
+                    clearSignature()
+                    setHasSignature(false)
+                  }}
+                  className={`pb-3 px-4 font-medium transition-colors ${
+                    signatureMode === 'upload'
+                      ? 'border-b-2 border-blue-600 text-blue-600'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Upload Document
+                </button>
+              </div>
 
-                <Button onClick={clearSignature} variant="outline">
-                  Clear Signature
-                </Button>
+              <div className="space-y-4">
+                {signatureMode === 'draw' ? (
+                  <>
+                    <div>
+                      <Label>Draw your signature below *</Label>
+                      <canvas
+                        ref={canvasRef}
+                        className="mt-2 w-full h-64 border-2 border-gray-300 rounded-lg cursor-crosshair bg-white"
+                        onMouseDown={startDrawing}
+                        onMouseMove={draw}
+                        onMouseUp={stopDrawing}
+                        onMouseLeave={stopDrawing}
+                      />
+                      {errors.signature && <p className="text-sm text-red-500 mt-1">{errors.signature}</p>}
+                    </div>
+
+                    <Button onClick={clearSignature} variant="outline">
+                      Clear Signature
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg bg-white p-8">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        onChange={handleSignatureFileUpload}
+                        className="hidden"
+                        id="signature-upload"
+                      />
+                      
+                      {!uploadedSignatureFile ? (
+                        <label
+                          htmlFor="signature-upload"
+                          className="flex flex-col items-center justify-center cursor-pointer"
+                        >
+                          <Upload className="h-12 w-12 text-gray-400 mb-4" />
+                          <p className="text-sm font-medium text-gray-700 mb-1">
+                            Click to upload signature document
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            PDF, DOC, DOCX, JPG, or PNG (max 5MB)
+                          </p>
+                        </label>
+                      ) : (
+                        <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">
+                              <Upload className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{uploadedSignatureFile.name}</p>
+                              <p className="text-xs text-gray-500">
+                                {(uploadedSignatureFile.size / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={removeSignatureFile}
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    {errors.signature && <p className="text-sm text-red-500 mt-1">{errors.signature}</p>}
+                  </>
+                )}
+
+                {/* Signature Agreement */}
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
+                  <div className="w-5 h-5 rounded-full border-2 border-gray-400 flex items-center justify-center mt-0.5">
+                    <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                  </div>
+                  <p className="text-sm text-gray-700">
+                    By {signatureMode === 'draw' ? 'signing this document with an electronic signature' : 'uploading this document'}, I agree that this {signatureMode === 'draw' ? 'signature' : 'document'} will be as valid as handwritten signatures.
+                  </p>
+                </div>
               </div>
             </Card>
           </div>
@@ -1254,95 +1421,9 @@ export default function SellerOnboardingPage() {
             </div>
             <Card className="flex-1 p-6">
               <div className="space-y-4">
-                <div 
-                  className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
-                  onClick={() => {
-                    setTermsExpanded(!termsExpanded)
-                    if (!termsExpanded && termsRef.current) {
-                      setTimeout(() => {
-                        termsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                      }, 100)
-                    }
-                  }}
-                >
-                  <div>
-                    <h2 className="text-xl font-semibold">6. Terms & Conditions</h2>
-                    <p className="text-sm text-gray-600">Read and accept to continue</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {validatedSections.terms && <CheckCircle className="h-6 w-6 text-blue-500" />}
-                    <ChevronDown className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${termsExpanded ? 'rotate-180' : ''}`} />
-                  </div>
-                </div>
-
-                {/* Preview Summary - Always Visible */}
-                <div className="bg-gray-50 border rounded-lg p-4">
-                  <p className="text-sm text-gray-700">
-                    By registering as a seller on Kareegar Bros platform, you agree to our terms governing the sale and distribution of goods. This includes granting us unrestricted rights to resell your products, full pricing control, and waiving objections to our business operations.
-                  </p>
-                  <button 
-                    type="button" 
-                    onClick={() => setTermsExpanded(!termsExpanded)} 
-                    className="text-sm text-blue-600 hover:underline font-medium mt-2"
-                  >
-                    {termsExpanded ? 'Show less' : 'Read full terms'}
-                  </button>
-                </div>
-                
-                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                  termsExpanded ? 'max-h-[32rem] opacity-100' : 'max-h-0 opacity-0'
-                }`}>
-                  <div className="overflow-y-auto max-h-96 border rounded-lg p-4 bg-white text-sm text-gray-700 space-y-4">
-                    <h3 className="font-bold text-center text-base">TERMS & CONDITIONS – SELLER AGREEMENT</h3>
-                    <p>
-                      This Seller Agreement (&quot;Agreement&quot;) is entered into by Kareegar Bros (&quot;Buyer&quot;) and the undersigned Seller (&quot;Seller&quot;) (together, the &quot;Parties&quot;), and forms a contract governed by the Indian Contract Act, 1872, as amended from time to time. By accepting this Agreement, the Seller expressly agrees to be bound by the following terms and conditions:
-                    </p>
-                    
-                    <div>
-                      <h4 className="font-semibold">1. Purpose and Intent</h4>
-                      <p>The Seller acknowledges that the Goods supplied under this Agreement (&quot;Goods&quot;) are purchased by the Buyer solely for its own use and for the purpose of resale, distribution, and commercial exploitation in the Indian market or any other market at the Buyer&apos;s discretion.</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">2. Absolute Right to Resell</h4>
-                      <p>The Buyer shall have unrestricted, exclusive, and absolute rights to sell, supply, distribute, or otherwise transfer the Goods to any third party, including affiliates, sister concerns, subsidiaries, or any entity of its choosing, in any quantity, at any price, and by any method or channel, without interference or restriction from the Seller.</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">3. Control Over Pricing and Terms of Resale</h4>
-                      <p>The Buyer shall have the sole and unfettered discretion to determine the price, payment terms, and conditions of resale of the Goods, and the Seller shall not impose or seek to impose any conditions, restrictions, or requirements relating thereto.</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">4. No Seller Interference or Objection</h4>
-                      <p>Upon transfer of ownership and delivery of the Goods to the Buyer, the Seller irrevocably waives any and all rights to object, challenge, or interfere with any aspect of the Buyer&apos;s resale, distribution, or further dealings with the Goods. This waiver includes but is not limited to claims based on contractual terms, proprietary rights, or any alleged violation of law or practice.</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">5. Non-Assertion of Trademark or Intellectual Property Claims</h4>
-                      <p>The Seller expressly agrees that it shall never assert, nor authorize any third party to assert, any trademark infringement, passing off, or other intellectual property rights claims against the Buyer or any subsequent purchaser arising from the resale of the Goods, provided the Goods are not materially altered, modified, or counterfeited by the Buyer or its assignees.</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">6. No Interest in Buyer&apos;s Revenues or Profits</h4>
-                      <p>The Seller hereby unequivocally acknowledges and agrees that it has no legal or equitable interest, claim, lien, or right in or to any profits, revenues, commissions, or economic benefits derived by the Buyer from the resale or commercial exploitation of the Goods.</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">7. Transfer of Title and Risk</h4>
-                      <p>Title to the Goods shall pass to the Buyer only upon full payment and physical delivery in accordance with this Agreement. Risk in the Goods shall pass to the Buyer upon delivery at the agreed location, and the Buyer shall bear all risks and liabilities thereafter.</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">8. Entire Agreement and Amendments</h4>
-                      <p>This Agreement, together with these Terms & Conditions, constitute the entire agreement between the Parties pertaining to the Goods and supersede all prior agreements, understandings, or representations. No amendment or waiver shall be valid unless made in writing and signed by both Parties.</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-semibold">9. Governing Law and Dispute Resolution</h4>
-                      <p>These Terms & Conditions shall be governed by and construed in accordance with the laws of India, including the Indian Contract Act, 1872 and all relevant statutory amendments. Any dispute arising out of or in connection with this Agreement shall be subject to the exclusive jurisdiction of the courts located in Mumbai, India.</p>
-                    </div>
-                  </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Terms & Conditions</h2>
+                  <p className="text-sm text-gray-600">Read and accept to continue</p>
                 </div>
                 
                 <div className="flex items-start gap-3 pt-2">
@@ -1354,7 +1435,7 @@ export default function SellerOnboardingPage() {
                     className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <label htmlFor="terms-checkbox" className="text-sm text-gray-700">
-                    I have read and agree to the <button type="button" onClick={() => setTermsExpanded(true)} className="text-blue-600 hover:underline font-medium">Terms & Conditions</button>. I understand that by checking this box, I am entering into a legally binding agreement with Kareegar Bros.
+                    I have read and agree to the <a href="/helfer-terms-and-conditions.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">Terms & Conditions</a>. I understand that by checking this box, I am entering into a legally binding agreement with helfer.
                   </label>
                 </div>
               </div>
@@ -1379,18 +1460,35 @@ export default function SellerOnboardingPage() {
         </div>
       </div>
 
-      {/* Loading Overlay */}
+      {/* Loading Overlay with Thank You Message */}
       {isSubmitting && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <Card className="w-full max-w-md mx-4">
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center text-center space-y-4">
-                <Loader2 className="h-16 w-16 animate-spin text-blue-600" />
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Submitting Your Application</h3>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Please wait while we process your seller onboarding application...
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in-0 duration-300">
+          <Card className="w-full max-w-md mx-4 animate-in zoom-in-95 fade-in-0 duration-300">
+            <CardContent className="pt-6 pb-6">
+              <div className="flex flex-col items-center text-center space-y-6">
+                {/* Loading Animation */}
+                <div className="relative">
+                  <Loader2 className="h-16 w-16 animate-spin text-blue-600" />
+                  <div className="absolute inset-0 h-16 w-16 rounded-full bg-blue-100 opacity-20 animate-ping" />
+                </div>
+                
+                {/* Thank You Message */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-600 animate-in zoom-in-95 duration-500" />
+                    <h3 className="text-xl font-bold text-gray-900">Thank You for Onboarding!</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    We appreciate you joining our platform. Your application is being processed...
                   </p>
+                  <div className="pt-2">
+                    <p className="text-xs text-blue-600 font-medium">
+                      Submitting Your Application
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      This will only take a moment
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>

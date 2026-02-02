@@ -1,6 +1,7 @@
 "use client";
 
 import { CreateProductModal } from "@/components/products/CreateProductModal";
+import { ProductDetailsModal } from "@/components/products/ProductDetailsModal";
 
 import { useState, useMemo, Suspense } from "react";
 import { Plus, Package, Tag, Eye, Search, Filter, X } from "lucide-react";
@@ -39,7 +40,7 @@ const mockProducts: ProductListItem[] = [
     brand: "DeWalt",
     sku: "DRL-IND-001",
     basePrice: 4500,
-    images: "[]",
+    images: JSON.stringify(["https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=400"]),
     isActive: true,
     category: { id: "cat1", name: "Tools" },
     _count: { variants: 3 }
@@ -52,7 +53,7 @@ const mockProducts: ProductListItem[] = [
     brand: "3M",
     sku: "SFT-HLM-001",
     basePrice: 850,
-    images: "[]",
+    images: JSON.stringify(["/safetyhelmet.jpg"]),
     isActive: true,
     category: { id: "cat2", name: "Safety Equipment" },
     _count: { variants: 5 }
@@ -65,7 +66,7 @@ const mockProducts: ProductListItem[] = [
     brand: "Supreme",
     sku: "PLB-PVC-004",
     basePrice: 320,
-    images: "[]",
+    images: JSON.stringify(["/pvcpipe.jpg"]),
     isActive: true,
     category: { id: "cat3", name: "Plumbing" },
     _count: { variants: 2 }
@@ -78,7 +79,7 @@ const mockProducts: ProductListItem[] = [
     brand: "Philips",
     sku: "ELC-LED-012",
     basePrice: 180,
-    images: "[]",
+    images: JSON.stringify(["/ledbulb.jpg"]),
     isActive: false,
     category: { id: "cat4", name: "Electrical" },
     _count: { variants: 4 }
@@ -199,12 +200,12 @@ function ProductsContent() {
           <div className="flex flex-col gap-4">
             {/* Search Bar */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4 transition-all duration-200" />
               <Input
                 placeholder="Search products by name, SKU, description, or brand..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4"
+                className="pl-10 pr-4 transition-all duration-200 focus:ring-2 focus:ring-blue-500"
               />
             </div>
             
@@ -263,7 +264,7 @@ function ProductsContent() {
                   variant="outline"
                   size="sm"
                   onClick={clearAllFilters}
-                  className="gap-2"
+                  className="gap-2 animate-in fade-in-0 slide-in-from-left-2 transition-all duration-200 hover:scale-105 active:scale-95"
                 >
                   <X className="h-4 w-4" />
                   Clear Filters
@@ -287,14 +288,15 @@ function ProductsContent() {
       {/* Products Grid */}
       {filteredProducts && filteredProducts.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredProducts.map((product: ProductListItem) => {
+          {filteredProducts.map((product: ProductListItem, index: number) => {
             const images = JSON.parse(product.images || '[]') as string[];
             const hasImage = images.length > 0;
             
             return (
               <Card 
                 key={product.id} 
-                className="hover:shadow-md transition-shadow cursor-pointer"
+                className="hover:shadow-lg transition-all duration-300 cursor-pointer animate-in fade-in-0 slide-in-from-bottom-4"
+                style={{ animationDelay: `${index * 50}ms` }}
                 onClick={() => handleProductClick(product.id)}
               >
                 <CardHeader>
@@ -314,15 +316,15 @@ function ProductsContent() {
                 <CardContent className="space-y-3">
                   {/* Product Image */}
                   {hasImage ? (
-                    <div className="w-full aspect-video bg-gray-100 rounded-md overflow-hidden">
+                    <div className="w-full aspect-video bg-gray-100 rounded-md overflow-hidden group-hover:shadow-inner transition-all duration-300">
                       <img 
                         src={images[0]} 
                         alt={product.name}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain transition-transform duration-300 hover:scale-110"
                       />
                     </div>
                   ) : (
-                    <div className="w-full h-32 bg-gray-100 rounded-md flex items-center justify-center">
+                    <div className="w-full h-32 bg-gray-100 rounded-md flex items-center justify-center transition-all duration-300 hover:bg-gray-200">
                       <Package className="h-8 w-8 text-gray-400" />
                     </div>
                   )}
@@ -366,7 +368,7 @@ function ProductsContent() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="w-full mt-3"
+                    className="w-full mt-3 transition-all duration-200 hover:scale-105 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 active:scale-95"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleProductClick(product.id);
@@ -431,6 +433,18 @@ function ProductsContent() {
           // In demo mode, this would refetch products
         }}
         warehouseId="demo-warehouse"
+      />
+
+      {/* Product Details Modal */}
+      <ProductDetailsModal
+        productId={selectedProduct}
+        open={!!selectedProduct}
+        onOpenChange={(open) => {
+          if (!open) setSelectedProduct(null);
+        }}
+        onSuccess={() => {
+          // In demo mode, this would refetch products
+        }}
       /> </div>
   );
 }

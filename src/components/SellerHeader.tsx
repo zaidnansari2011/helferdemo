@@ -8,7 +8,7 @@ import {
   FileText,
   ClipboardList,
   Receipt,
-  Settings, 
+  User, 
   LogOut,
   ChevronDown
 } from "lucide-react";
@@ -100,9 +100,9 @@ export function SellerHeader() {
 
         {/* User Menu */}
         <div className="flex items-center gap-2">
-          <Link href="/seller/settings">
+          <Link href="/seller/account">
             <Button variant="ghost" size="icon" className="text-gray-700 hover:bg-gray-100">
-              <Settings className="h-5 w-5" />
+              <User className="h-6 w-6" />
             </Button>
           </Link>
           <DropdownMenu>

@@ -12,6 +12,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Form,
   FormControl,
   FormDescription,
@@ -44,7 +54,8 @@ import {
   Receipt,
   ChevronLeft,
   ChevronRight,
-  Check
+  Check,
+  Info
 } from "lucide-react";
 import { trpc } from "@/lib/trpc-provider";
 import { toast } from "sonner";
@@ -73,6 +84,8 @@ const productSchema = z.object({
     if (val === '' || val === null || val === undefined) return undefined;
     return typeof val === 'string' ? parseFloat(val) || undefined : val;
   }).optional(),
+  dimensionUnit: z.enum(['MM', 'CM', 'M', 'INCH', 'FEET']).default('CM').optional(),
+  dimensions: z.string().optional(),
   packagingType: z.string().optional(),
   itemsPerPackage: z.union([z.string(), z.number()]).transform(val => {
     if (val === '' || val === null || val === undefined) return 1;
@@ -112,7 +125,7 @@ const productSchema = z.object({
     return typeof val === 'string' ? parseInt(val) || 7 : val;
   }).pipe(z.number().int().min(1).default(7)),
   requiresEInvoice: z.boolean().default(true),
-  images: z.array(z.string()).default([]),
+  images: z.array(z.string()).min(5, "Minimum 5 product images are required").default([]),
   status: z.enum(['DRAFT', 'ACTIVE', 'OUT_OF_STOCK', 'DISCONTINUED']).default('DRAFT'),
   certificates: z.array(z.string()).default([]),
   productDocuments: z.array(z.string()).default([]),
@@ -140,6 +153,7 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ProductFormValues>({
@@ -157,6 +171,8 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
       hsnCode: "",
       unitOfMeasure: "PIECE",
       weight: "" as any,
+      dimensionUnit: "CM",
+      dimensions: "",
       packagingType: "",
       itemsPerPackage: "" as any,
       isHazardous: false,
@@ -267,6 +283,17 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
 
   const onSubmit = (data: ProductFormValues) => {
     console.log('Form submitted with data:', data);
+    
+    // Validate minimum images
+    if (uploadedImages.length < 5) {
+      toast.error("Please upload at least 5 product images", {
+        description: `You have uploaded ${uploadedImages.length} image${uploadedImages.length !== 1 ? 's' : ''}. ${5 - uploadedImages.length} more required.`,
+        duration: 5000,
+      });
+      setCurrentStep(0); // Go back to first step where images are
+      return;
+    }
+    
     setIsSubmitting(true);
     
     // Clean up data - convert empty strings to undefined for optional number fields
@@ -305,8 +332,9 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!isSubmitting && !uploadingImage) {
-      // If closing, check if user has entered any data
       if (!newOpen) {
+        // This is triggered by the X button, not the Cancel button
+        // Check if there's any unsaved data
         const formValues = form.getValues();
         const hasData = formValues.name || 
                        formValues.description || 
@@ -317,12 +345,8 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
                        uploadedImages.length > 0;
         
         if (hasData) {
-          const confirmed = window.confirm(
-            "You have unsaved changes. Are you sure you want to close? All your progress will be lost."
-          );
-          if (!confirmed) {
-            return; // Don't close if user cancels
-          }
+          // Silently prevent closing - user must use Cancel button
+          return;
         }
         
         form.reset();
@@ -331,6 +355,51 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
       }
       onOpenChange(newOpen);
     }
+  };
+
+  const handleInteractOutside = (e: Event) => {
+    // Check if there's any unsaved data
+    const formValues = form.getValues();
+    const hasData = formValues.name || 
+                   formValues.description || 
+                   formValues.brand || 
+                   formValues.manufacturer || 
+                   formValues.categoryId || 
+                   formValues.basePrice || 
+                   uploadedImages.length > 0;
+    
+    if (hasData || isSubmitting || uploadingImage) {
+      e.preventDefault();
+      // Silently prevent closing - user must use Cancel button
+    }
+  };
+
+  const handleCancelClick = () => {
+    const formValues = form.getValues();
+    const hasData = formValues.name || 
+                   formValues.description || 
+                   formValues.brand || 
+                   formValues.manufacturer || 
+                   formValues.categoryId || 
+                   formValues.basePrice || 
+                   uploadedImages.length > 0;
+    
+    if (hasData) {
+      setShowCancelConfirm(true);
+    } else {
+      form.reset();
+      setUploadedImages([]);
+      setCurrentStep(0);
+      onOpenChange(false);
+    }
+  };
+
+  const handleConfirmCancel = () => {
+    form.reset();
+    setUploadedImages([]);
+    setCurrentStep(0);
+    setShowCancelConfirm(false);
+    onOpenChange(false);
   };
 
   const nextStep = () => {
@@ -368,7 +437,10 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="!max-w-[85vw] !w-[85vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="!max-w-5xl !w-full !max-h-[90vh] overflow-y-auto animate-in fade-in-0 zoom-in-95 duration-300"
+        onInteractOutside={handleInteractOutside}
+      >
         <DialogHeader>
           <DialogTitle className="text-xl text-red-600">Add New Product</DialogTitle>
           <DialogDescription>
@@ -411,7 +483,7 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
             
             {/* Step 1: Basic Info */}
             {currentStep === 0 && (
-              <Card>
+              <Card className="animate-in fade-in-0 slide-in-from-right-5 duration-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" />Basic Information</CardTitle>
                 </CardHeader>
@@ -465,29 +537,159 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
                     </FormItem>
                   )} />
 
-                  {/* Image Upload */}
+                  {/* Product Dimensions */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Product Images</label>
+                    <label className="text-sm font-medium">Product Dimensions</label>
+                    <div className="grid grid-cols-4 gap-3">
+                      <FormField control={form.control} name="dimensionUnit" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-gray-600">Unit</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Unit" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="MM">mm</SelectItem>
+                              <SelectItem value="CM">cm</SelectItem>
+                              <SelectItem value="M">m</SelectItem>
+                              <SelectItem value="INCH">inch</SelectItem>
+                              <SelectItem value="FEET">feet</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )} />
+                      <div className="col-span-3">
+                        <FormField control={form.control} name="dimensions" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs text-gray-600">Dimensions (L × W × H)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., 10 × 5 × 3" {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                      </div>
+                    </div>
+                    <FormDescription className="text-xs">Enter product dimensions for shipping calculations</FormDescription>
+                  </div>
+
+                  {/* Image Upload */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium">Product Images *</label>
+                        <div className="group relative">
+                          <Info className="h-4 w-4 text-blue-500 cursor-help" />
+                          <div className="absolute left-0 top-6 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                            <div className="font-semibold mb-2">Image Requirements:</div>
+                            <ul className="space-y-1 list-disc list-inside">
+                              <li><strong>Minimum:</strong> 5 images required</li>
+                              <li><strong>Resolution:</strong> 1200x1200px (recommended)</li>
+                              <li><strong>Minimum size:</strong> 800x800px</li>
+                              <li><strong>Format:</strong> JPG, PNG, or WebP</li>
+                              <li><strong>Max file size:</strong> 5MB per image</li>
+                              <li><strong>Aspect ratio:</strong> Square (1:1) preferred</li>
+                            </ul>
+                            <div className="mt-2 pt-2 border-t border-gray-700 text-gray-300">
+                              Tip: Use high-quality, well-lit photos from multiple angles
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className={`text-sm font-semibold ${
+                        uploadedImages.length >= 5 
+                          ? 'text-green-600' 
+                          : uploadedImages.length > 0 
+                            ? 'text-orange-600' 
+                            : 'text-red-600'
+                      }`}>
+                        {uploadedImages.length}/5 images
+                      </div>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${
+                          uploadedImages.length >= 5 
+                            ? 'bg-green-500' 
+                            : uploadedImages.length > 0 
+                              ? 'bg-orange-500' 
+                              : 'bg-red-500'
+                        }`}
+                        style={{ width: `${(uploadedImages.length / 5) * 100}%` }}
+                      />
+                    </div>
+
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} className="w-full">
-                      {uploadingImage ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ImagePlus className="h-4 w-4 mr-2" />}
-                      {uploadingImage ? "Uploading..." : "Upload Image"}
-                    </Button>
+                    <div className="flex gap-3">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => fileInputRef.current?.click()} 
+                        disabled={uploadingImage} 
+                        className="flex-1 h-11 transition-all duration-200 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
+                      >
+                        {uploadingImage ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ImagePlus className="h-4 w-4 mr-2" />}
+                        {uploadingImage ? "Uploading..." : "Upload Image"}
+                      </Button>
+                      <div className={`flex items-center justify-center px-4 h-11 rounded-md border-2 transition-all duration-300 ${
+                        uploadedImages.length >= 5 
+                          ? 'border-green-500 bg-green-50 text-green-700' 
+                          : 'border-orange-500 bg-orange-50 text-orange-700'
+                      }`}>
+                        <span className="font-semibold text-sm">
+                          {uploadedImages.length < 5 ? `${5 - uploadedImages.length} more needed` : 'Complete ✓'}
+                        </span>
+                      </div>
+                    </div>
+                    
                     {uploadedImages.length > 0 && (
-                      <div className="grid grid-cols-6 gap-2 mt-4">
+                      <div className="grid grid-cols-5 gap-3 mt-4">
                         {uploadedImages.map((url, i) => (
-                          <div key={i} className="relative group">
-                            <div className="w-16 h-16 border rounded overflow-hidden">
+                          <div key={i} className="relative group animate-in fade-in-0 zoom-in-95 duration-200" style={{ animationDelay: `${i * 50}ms` }}>
+                            <div className={`w-full aspect-square border-2 rounded-lg overflow-hidden transition-all duration-200 group-hover:scale-105 group-hover:shadow-lg ${
+                              i === 0 ? 'border-blue-500' : 'border-gray-300'
+                            }`}>
                               <img src={url} alt={`Product ${i + 1}`} className="w-full h-full object-cover" />
                             </div>
+                            {i === 0 && (
+                              <div className="absolute bottom-1 left-1 bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                Main
+                              </div>
+                            )}
                             <Button type="button" variant="destructive" size="sm" 
-                              className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 opacity-0 group-hover:opacity-100"
+                              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                               onClick={() => removeImage(i)}>
                               <X className="h-3 w-3" />
                             </Button>
                           </div>
                         ))}
+                        {/* Empty placeholders to show remaining required images */}
+                        {uploadedImages.length < 5 && Array.from({ length: 5 - uploadedImages.length }).map((_, i) => (
+                          <div key={`empty-${i}`} className="w-full aspect-square border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100">
+                            <ImagePlus className="h-6 w-6 text-gray-400" />
+                          </div>
+                        ))}
                       </div>
+                    )}
+                    
+                    {uploadedImages.length === 0 && (
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8">
+                        <div className="text-center">
+                          <ImagePlus className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                          <p className="text-sm text-gray-600 mb-1">No images uploaded yet</p>
+                          <p className="text-xs text-gray-500">Click the button above to upload your first image</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {uploadedImages.length > 0 && uploadedImages.length < 5 && (
+                      <p className="text-xs text-orange-600 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Please upload {5 - uploadedImages.length} more image{5 - uploadedImages.length !== 1 ? 's' : ''} to meet the minimum requirement
+                      </p>
                     )}
                   </div>
                 </CardContent>
@@ -496,7 +698,7 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
 
             {/* Step 2: Pricing & Tax */}
             {currentStep === 1 && (
-              <Card>
+              <Card className="animate-in fade-in-0 slide-in-from-right-5 duration-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Receipt className="h-5 w-5" />Pricing & GST</CardTitle>
                 </CardHeader>
@@ -625,7 +827,7 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
 
             {/* Step 3: Compliance */}
             {currentStep === 2 && (
-              <Card>
+              <Card className="animate-in fade-in-0 slide-in-from-right-5 duration-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5" />Regulatory & Compliance</CardTitle>
                 </CardHeader>
@@ -731,7 +933,7 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
 
             {/* Step 4: Logistics */}
             {currentStep === 3 && (
-              <Card>
+              <Card className="animate-in fade-in-0 slide-in-from-right-5 duration-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Truck className="h-5 w-5" />Logistics</CardTitle>
                 </CardHeader>
@@ -819,20 +1021,21 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
               <Button
                 type="button"
                 variant="outline"
-                onClick={currentStep === 0 ? () => handleOpenChange(false) : prevStep}
+                onClick={currentStep === 0 ? handleCancelClick : prevStep}
                 disabled={isSubmitting || uploadingImage}
+                className="transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 {currentStep === 0 ? "Cancel" : "Previous"}
               </Button>
 
               {currentStep < STEPS.length - 1 ? (
-                <Button type="button" onClick={nextStep}>
+                <Button type="button" onClick={nextStep} className="transition-all duration-200 hover:scale-105 active:scale-95">
                   Next
                   <ChevronRight className="h-4 w-4 ml-2" />
                 </Button>
               ) : (
-                <Button type="submit" disabled={isSubmitting || loadingCategories || uploadingImage} className="bg-red-600 hover:bg-red-700">
+                <Button type="submit" disabled={isSubmitting || loadingCategories || uploadingImage} className="bg-red-600 hover:bg-red-700 transition-all duration-200 hover:scale-105 active:scale-95">
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Product
                 </Button>
@@ -841,6 +1044,34 @@ export function CreateProductModal({ open, onOpenChange, onSuccess, warehouseId 
           </form>
         </Form>
       </DialogContent>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-semibold text-gray-900">
+              Discard Product Creation?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
+              All your unsaved changes will be lost. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-2">
+            <AlertDialogCancel 
+              className="border-gray-300 hover:bg-gray-50"
+              onClick={() => setShowCancelConfirm(false)}
+            >
+              Keep Editing
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleConfirmCancel}
+            >
+              Yes, Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
